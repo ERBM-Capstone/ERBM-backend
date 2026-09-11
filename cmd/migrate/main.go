@@ -87,32 +87,32 @@ func appliedVersions(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, 
 
 // migrateUp runs every pending migration file in ascending order.
 func migrateUp(ctx context.Context, pool *pgxpool.Pool) error {
-	files, err := sqlFiles()
+	versions, err := migrationVersions()
 	if err != nil {
 		return err
 	}
-	sort.Strings(files)
+	sort.Strings(versions)
 
 	applied, err := appliedVersions(ctx, pool)
 	if err != nil {
 		return err
 	}
 
-	for _, f := range files {
-		version := migrationVersion(f)
+	for _, version := range versions {
 		if applied[version] {
 			fmt.Printf("  skip  %s (already applied)\n", version)
 			continue
 		}
 
-		content, err := os.ReadFile(f)
+		upFile := fmt.Sprintf("migrations/%s.up.sql", version)
+		content, err := os.ReadFile(upFile)
 		if err != nil {
-			return fmt.Errorf("read %s: %w", f, err)
+			return fmt.Errorf("read %s: %w", upFile, err)
 		}
 
-		upSQL := extractSection(string(content), "up")
-		if strings.TrimSpace(upSQL) == "" {
-			fmt.Printf("  skip  %s (empty up section)\n", version)
+		upSQL := strings.TrimSpace(string(content))
+		if upSQL == "" {
+			fmt.Printf("  skip  %s (empty up migration)\n", version)
 			continue
 		}
 
@@ -139,31 +139,31 @@ func migrateUp(ctx context.Context, pool *pgxpool.Pool) error {
 
 // migrateDown rolls back the most recently applied migration.
 func migrateDown(ctx context.Context, pool *pgxpool.Pool) error {
-	files, err := sqlFiles()
+	versions, err := migrationVersions()
 	if err != nil {
 		return err
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(files)))
+	sort.Sort(sort.Reverse(sort.StringSlice(versions)))
 
 	applied, err := appliedVersions(ctx, pool)
 	if err != nil {
 		return err
 	}
 
-	for _, f := range files {
-		version := migrationVersion(f)
+	for _, version := range versions {
 		if !applied[version] {
 			continue
 		}
 
-		content, err := os.ReadFile(f)
+		downFile := fmt.Sprintf("migrations/%s.down.sql", version)
+		content, err := os.ReadFile(downFile)
 		if err != nil {
-			return fmt.Errorf("read %s: %w", f, err)
+			return fmt.Errorf("read %s: %w", downFile, err)
 		}
 
-		downSQL := extractSection(string(content), "down")
-		if strings.TrimSpace(downSQL) == "" {
-			fmt.Printf("  skip  %s (empty down section)\n", version)
+		downSQL := strings.TrimSpace(string(content))
+		if downSQL == "" {
+			fmt.Printf("  skip  %s (empty down migration)\n", version)
 			return nil
 		}
 
@@ -191,33 +191,19 @@ func migrateDown(ctx context.Context, pool *pgxpool.Pool) error {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-func sqlFiles() ([]string, error) {
-	return filepath.Glob("migrations/*.sql")
-}
-
-func migrationVersion(path string) string {
-	base := filepath.Base(path)
-	return strings.TrimSuffix(base, ".sql")
-}
-
-// extractSection parses -- migrate:up / -- migrate:down markers.
-func extractSection(content, section string) string {
-	marker := fmt.Sprintf("-- migrate:%s", section)
-	idx := strings.Index(content, marker)
-	if idx == -1 {
-		return ""
+// migrationVersions returns all unique migration versions found in the migrations directory.
+// It looks for .up.sql files and extracts the version prefix.
+func migrationVersions() ([]string, error) {
+	files, err := filepath.Glob("migrations/*.up.sql")
+	if err != nil {
+		return nil, err
 	}
-	body := content[idx+len(marker):]
 
-	// Stop at the next marker
-	var otherMarker string
-	if section == "up" {
-		otherMarker = "-- migrate:down"
-	} else {
-		otherMarker = "-- migrate:up"
+	versions := make([]string, 0, len(files))
+	for _, f := range files {
+		base := filepath.Base(f)
+		version := strings.TrimSuffix(base, ".up.sql")
+		versions = append(versions, version)
 	}
-	if end := strings.Index(body, otherMarker); end != -1 {
-		body = body[:end]
-	}
-	return strings.TrimSpace(body)
+	return versions, nil
 }

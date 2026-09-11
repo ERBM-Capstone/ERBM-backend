@@ -1,0 +1,4 @@
+-- Add your DOWN migration here.
+-- Template:
+--
+-- DROP TABLE IF EXISTS your_table;

@@ -1,6 +1,4 @@
--- migrate:up
-
--- Add new migrations here.
+-- Add your UP migration here.
 -- Template:
 --
 -- CREATE TABLE your_table (
@@ -13,7 +11,3 @@
 --     deleted_at TIMESTAMPTZ,
 --     deleted_by TEXT
 -- );
-
--- migrate:down
-
--- DROP TABLE IF EXISTS your_table;
