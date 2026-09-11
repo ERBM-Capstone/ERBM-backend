@@ -1,0 +1,21 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Go build and test artifacts
+/bin/
+*.test
+*.out
+coverage.*
+
+# Temporary files and logs
+/tmp/
+*.log
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

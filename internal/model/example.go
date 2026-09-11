@@ -12,14 +12,14 @@ const (
 
 // Example is the domain model mapped to the `examples` table.
 type Example struct {
-	ID          string        `json:"id"`
-	Name        string        `json:"name"`
-	Description *string       `json:"description,omitempty"`
-	Status      ExampleStatus `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
-	CreatedBy   *string       `json:"created_by,omitempty"`
-	UpdatedAt   time.Time     `json:"updated_at"`
-	UpdatedBy   *string       `json:"updated_by,omitempty"`
-	DeletedAt   *time.Time    `json:"deleted_at,omitempty"`
-	DeletedBy   *string       `json:"deleted_by,omitempty"`
+	ID          string
+	Name        string
+	Description *string
+	Status      ExampleStatus
+	CreatedAt   time.Time
+	CreatedBy   *string
+	UpdatedAt   time.Time  `json:"updated_at"`
+	UpdatedBy   *string    `json:"updated_by,omitempty"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy   *string    `json:"deleted_by,omitempty"`
 }

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ERBM-Capstone/ERBM-backend/dto"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/your-org/project-hub-backend/dto"
-	"github.com/your-org/project-hub-backend/internal/model"
 )
 
 // ExampleRepository handles all DB operations for the examples table.

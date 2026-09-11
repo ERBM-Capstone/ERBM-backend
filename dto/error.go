@@ -10,11 +10,13 @@ import (
 // ── Sentinel errors ──────────────────────────────────────────────────────────
 
 var (
-	ErrNotFound       = errors.New("not found")
-	ErrAlreadyDeleted = errors.New("already deleted")
-	ErrUnauthorized   = errors.New("unauthorized")
-	ErrForbidden      = errors.New("forbidden")
-	ErrBadRequest     = errors.New("bad request")
+	ErrNotFound           = errors.New("not found")
+	ErrAlreadyDeleted     = errors.New("already deleted")
+	ErrUnauthorized       = errors.New("unauthorized")
+	ErrForbidden          = errors.New("forbidden")
+	ErrBadRequest         = errors.New("bad request")
+	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrInternalServer     = errors.New("internal server error")
 
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
@@ -24,12 +26,14 @@ var (
 
 // ErrorStatusMap maps sentinel errors to HTTP status codes.
 var ErrorStatusMap = map[error]int{
-	ErrNotFound:        http.StatusNotFound,
-	ErrAlreadyDeleted:  http.StatusGone,
-	ErrUnauthorized:    http.StatusUnauthorized,
-	ErrForbidden:       http.StatusForbidden,
-	ErrBadRequest:      http.StatusBadRequest,
-	ErrExampleNotFound: http.StatusNotFound,
+	ErrNotFound:           http.StatusNotFound,
+	ErrAlreadyDeleted:     http.StatusGone,
+	ErrUnauthorized:       http.StatusUnauthorized,
+	ErrForbidden:          http.StatusForbidden,
+	ErrBadRequest:         http.StatusBadRequest,
+	ErrInvalidCredentials: http.StatusUnauthorized,
+	ErrInternalServer:     http.StatusInternalServerError,
+	ErrExampleNotFound:    http.StatusNotFound,
 }
 
 // ── Shared response helpers ──────────────────────────────────────────────────

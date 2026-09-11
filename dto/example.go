@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"github.com/your-org/project-hub-backend/internal/model"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
 )
 
 // ── URI param ────────────────────────────────────────────────────────────────
@@ -30,13 +30,13 @@ type UpdateExampleRequest struct {
 
 // ExampleResponse is the public-facing shape returned by the API.
 type ExampleResponse struct {
-	ID          string               `json:"id"`
-	Name        string               `json:"name"`
-	Description *string              `json:"description,omitempty"`
-	Status      model.ExampleStatus  `json:"status"`
-	CreatedAt   string               `json:"created_at"`
-	CreatedBy   *string              `json:"created_by,omitempty"`
-	UpdatedAt   string               `json:"updated_at"`
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	Description *string             `json:"description,omitempty"`
+	Status      model.ExampleStatus `json:"status"`
+	CreatedAt   string              `json:"created_at"`
+	CreatedBy   *string             `json:"created_by,omitempty"`
+	UpdatedAt   string              `json:"updated_at"`
 }
 
 // ── Mappers ──────────────────────────────────────────────────────────────────

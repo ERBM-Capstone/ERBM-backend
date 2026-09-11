@@ -3,10 +3,10 @@ package handler
 import (
 	"net/http"
 
+	"github.com/ERBM-Capstone/ERBM-backend/dto"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/service"
 	"github.com/gin-gonic/gin"
-	"github.com/your-org/project-hub-backend/dto"
-	"github.com/your-org/project-hub-backend/internal/middleware"
-	"github.com/your-org/project-hub-backend/internal/service"
 )
 
 // ExampleHandler exposes HTTP endpoints for the Example resource.

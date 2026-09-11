@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/your-org/project-hub-backend/dto"
-	"github.com/your-org/project-hub-backend/internal/model"
-	"github.com/your-org/project-hub-backend/internal/repository"
+	"github.com/ERBM-Capstone/ERBM-backend/dto"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/repository"
 )
 
 // ExampleService contains business logic for the Example resource.

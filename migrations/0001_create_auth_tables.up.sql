@@ -6,6 +6,13 @@ CREATE TABLE roles (
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- Insert initial roles
+INSERT INTO roles (code, name) VALUES
+('ADMIN', 'Administrator'),
+('PC', 'Project Coordinator'),
+('PM', 'Project Manager'),
+('ACCOUNTING', 'Accounting');
+
 
 -- Create employees table
 CREATE TABLE employees (
