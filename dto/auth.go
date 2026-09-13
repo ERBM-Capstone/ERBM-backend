@@ -9,6 +9,5 @@ type LoginRequest struct {
 // LoginResponse contains a bearer access token and its lifetime in seconds.
 type LoginResponse struct {
 	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
 	ExpiresIn   int64  `json:"expires_in"`
 }

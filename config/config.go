@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -10,11 +11,14 @@ import (
 
 // Config holds all application configuration loaded from environment variables.
 type Config struct {
-	Port              string
-	DatabaseURL       string
-	JWTSecret         string
-	JWTIssuer         string
-	JWTAccessTokenTTL time.Duration
+	Port                string
+	DatabaseURL         string
+	JWTSecret           string
+	JWTIssuer           string
+	JWTAccessTokenTTL   time.Duration
+	JWTRefreshSecret    string
+	JWTRefreshTokenTTL  time.Duration
+	RefreshCookieSecure bool
 }
 
 // Load reads .env (if present) and returns a populated Config.
@@ -24,11 +28,14 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Port:              getEnv("PORT", "8080"),
-		DatabaseURL:       getEnv("DATABASE_URL", ""),
-		JWTSecret:         getEnv("JWT_SECRET", ""),
-		JWTIssuer:         getEnv("JWT_ISSUER", "erbm"),
-		JWTAccessTokenTTL: getDurationEnv("JWT_ACCESS_TOKEN_TTL", 15*time.Minute),
+		Port:                getEnv("PORT", "8080"),
+		DatabaseURL:         getEnv("DATABASE_URL", ""),
+		JWTSecret:           getEnv("JWT_SECRET", ""),
+		JWTIssuer:           getEnv("JWT_ISSUER", "erbm"),
+		JWTAccessTokenTTL:   getDurationEnv("JWT_ACCESS_TOKEN_TTL", 15*time.Minute),
+		JWTRefreshSecret:    getEnv("JWT_REFRESH_SECRET", ""),
+		JWTRefreshTokenTTL:  getDurationEnv("JWT_REFRESH_TTL", 168*time.Hour),
+		RefreshCookieSecure: getBoolEnv("REFRESH_COOKIE_SECURE", false),
 	}
 }
 
@@ -52,4 +59,19 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getBoolEnv(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Printf("invalid boolean for %s, using default", key)
+		return fallback
+	}
+
+	return parsed
 }

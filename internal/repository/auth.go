@@ -46,6 +46,33 @@ func (r *AuthRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 	return &result.User, result.RoleCode, nil
 }
 
+// GetUserByID returns a user and their current role code for token refresh.
+func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (*model.User, string, error) {
+	type userWithRole struct {
+		model.User
+		RoleCode string
+	}
+
+	var result userWithRole
+	err := r.db.WithContext(ctx).
+		Table("users AS u").
+		Select(`u.id, u.employee_id, u.email, u.password_hash,
+			u.role_id, u.status, u.first_login,
+			u.failed_login_attempts, u.locked_until, u.last_login_at,
+			u.created_at, u.updated_at, r.code AS role_code`).
+		Joins("JOIN roles r ON r.id = u.role_id").
+		Where("u.id = ?", userID).
+		Take(&result).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, "", dto.ErrUnauthorized
+	}
+	if err != nil {
+		return nil, "", err
+	}
+
+	return &result.User, result.RoleCode, nil
+}
+
 // UpdateLastLogin records a successful login for a user.
 func (r *AuthRepository) UpdateLastLogin(ctx context.Context, userID int64) error {
 	result := r.db.WithContext(ctx).

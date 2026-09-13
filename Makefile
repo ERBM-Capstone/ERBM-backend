@@ -9,7 +9,7 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-APP_NAME   := project-hub-backend
+APP_NAME   := ERBM-backend
 IMAGE_NAME := $(APP_NAME)
 IMAGE_TAG  ?= latest
 

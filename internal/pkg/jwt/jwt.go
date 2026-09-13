@@ -1,4 +1,4 @@
-// Package jwt issues and validates ERBM JWT access tokens.
+// Package jwt issues and validates ERBM JWT access and refresh tokens.
 package jwt
 
 import (
@@ -10,108 +10,188 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ERBM-Capstone/ERBM-backend/dto"
 	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
 const (
 	minimumSecretLength = 32
 	tokenIDLength       = 16
-)
 
-var (
-	ErrSecretTooShort = errors.New("jwt secret must be at least 32 bytes")
-	ErrIssuerRequired = errors.New("jwt issuer is required")
-	ErrTTLRequired    = errors.New("jwt access token TTL must be positive")
-	ErrInvalidUserID  = errors.New("jwt user ID must be positive")
-	ErrRoleRequired   = errors.New("jwt role is required")
-	ErrInvalidToken   = errors.New("invalid jwt access token")
+	TokenTypeAccess  = "access"
+	TokenTypeRefresh = "refresh"
 )
 
 // Claims contains the authenticated identity carried by an ERBM access token.
 type Claims struct {
-	UserID int64  `json:"user_id"`
-	Role   string `json:"role"`
+	UserID    int64  `json:"user_id"`
+	Role      string `json:"role"`
+	TokenType string `json:"token_type"`
 	jwtlib.RegisteredClaims
 }
 
-// Manager signs and validates access tokens using HMAC SHA-256.
-type Manager struct {
-	secret []byte
-	issuer string
-	ttl    time.Duration
-	now    func() time.Time
+// RefreshClaims contains only the identity required to obtain a new access token.
+// The current role is deliberately loaded from PostgreSQL during refresh.
+type RefreshClaims struct {
+	UserID    int64  `json:"user_id"`
+	TokenType string `json:"token_type"`
+	jwtlib.RegisteredClaims
 }
 
-// NewManager creates an access-token manager.
-func NewManager(secret, issuer string, ttl time.Duration) (*Manager, error) {
-	if len(secret) < minimumSecretLength {
-		return nil, ErrSecretTooShort
+// Manager signs and validates access and refresh tokens using separate HMAC secrets.
+type Manager struct {
+	accessSecret  []byte
+	refreshSecret []byte
+	issuer        string
+	accessTTL     time.Duration
+	refreshTTL    time.Duration
+	now           func() time.Time
+}
+
+// NewManager creates an access- and refresh-token manager.
+func NewManager(accessSecret, refreshSecret, issuer string, accessTTL, refreshTTL time.Duration) (*Manager, error) {
+	if len(accessSecret) < minimumSecretLength || len(refreshSecret) < minimumSecretLength {
+		return nil, dto.ErrSecretTooShort
+	}
+	if accessSecret == refreshSecret {
+		return nil, dto.ErrSecretsMustDiffer
 	}
 	if strings.TrimSpace(issuer) == "" {
-		return nil, ErrIssuerRequired
+		return nil, dto.ErrIssuerRequired
 	}
-	if ttl <= 0 {
-		return nil, ErrTTLRequired
+	if accessTTL <= 0 {
+		return nil, dto.ErrAccessTTLRequired
+	}
+	if refreshTTL <= 0 {
+		return nil, dto.ErrRefreshTTLRequired
 	}
 
 	return &Manager{
-		secret: []byte(secret),
-		issuer: issuer,
-		ttl:    ttl,
-		now:    time.Now,
+		accessSecret:  []byte(accessSecret),
+		refreshSecret: []byte(refreshSecret),
+		issuer:        issuer,
+		accessTTL:     accessTTL,
+		refreshTTL:    refreshTTL,
+		now:           time.Now,
 	}, nil
 }
 
 // AccessTokenTTL returns the configured lifetime of issued access tokens.
 func (m *Manager) AccessTokenTTL() time.Duration {
-	return m.ttl
+	return m.accessTTL
+}
+
+// RefreshTokenTTL returns the configured lifetime of issued refresh tokens.
+func (m *Manager) RefreshTokenTTL() time.Duration {
+	return m.refreshTTL
 }
 
 // GenerateAccessToken signs a new access token for a user and role.
 func (m *Manager) GenerateAccessToken(userID int64, role string) (string, error) {
 	if userID <= 0 {
-		return "", ErrInvalidUserID
+		return "", dto.ErrInvalidUserID
 	}
 
 	role = strings.TrimSpace(role)
 	if role == "" {
-		return "", ErrRoleRequired
+		return "", dto.ErrRoleRequired
 	}
 
-	tokenID, err := newTokenID()
+	registeredClaims, err := m.newRegisteredClaims(userID, m.accessTTL)
 	if err != nil {
-		return "", fmt.Errorf("generate jwt token ID: %w", err)
+		return "", fmt.Errorf("generate jwt access token claims: %w", err)
 	}
 
-	issuedAt := m.now().UTC()
 	claims := Claims{
-		UserID: userID,
-		Role:   role,
-		RegisteredClaims: jwtlib.RegisteredClaims{
-			Issuer:    m.issuer,
-			Subject:   strconv.FormatInt(userID, 10),
-			ExpiresAt: jwtlib.NewNumericDate(issuedAt.Add(m.ttl)),
-			IssuedAt:  jwtlib.NewNumericDate(issuedAt),
-			ID:        tokenID,
-		},
+		UserID:           userID,
+		Role:             role,
+		TokenType:        TokenTypeAccess,
+		RegisteredClaims: registeredClaims,
 	}
 
-	token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString(m.secret)
+	return sign(claims, m.accessSecret, "access")
+}
+
+// GenerateRefreshToken signs a new refresh token containing no role claim.
+func (m *Manager) GenerateRefreshToken(userID int64) (string, error) {
+	if userID <= 0 {
+		return "", dto.ErrInvalidUserID
+	}
+
+	registeredClaims, err := m.newRegisteredClaims(userID, m.refreshTTL)
 	if err != nil {
-		return "", fmt.Errorf("sign jwt access token: %w", err)
+		return "", fmt.Errorf("generate jwt refresh token claims: %w", err)
 	}
 
-	return signedToken, nil
+	claims := RefreshClaims{
+		UserID:           userID,
+		TokenType:        TokenTypeRefresh,
+		RegisteredClaims: registeredClaims,
+	}
+
+	return sign(claims, m.refreshSecret, "refresh")
 }
 
 // ParseAccessToken validates an access token and returns its trusted claims.
 func (m *Manager) ParseAccessToken(encodedToken string) (*Claims, error) {
 	if strings.TrimSpace(encodedToken) == "" {
-		return nil, ErrInvalidToken
+		return nil, dto.ErrInvalidAccessToken
 	}
 
 	claims := &Claims{}
+	if err := m.parse(encodedToken, claims, m.accessSecret); err != nil {
+		return nil, fmt.Errorf("%w: %v", dto.ErrInvalidAccessToken, err)
+	}
+	if err := validateRegisteredClaims(claims.UserID, claims.RegisteredClaims, m.accessTTL); err != nil {
+		return nil, fmt.Errorf("%w: %v", dto.ErrInvalidAccessToken, err)
+	}
+	if claims.TokenType != TokenTypeAccess {
+		return nil, fmt.Errorf("%w: unexpected token type", dto.ErrInvalidAccessToken)
+	}
+	if strings.TrimSpace(claims.Role) == "" {
+		return nil, fmt.Errorf("%w: %v", dto.ErrInvalidAccessToken, dto.ErrRoleRequired)
+	}
+
+	return claims, nil
+}
+
+// ParseRefreshToken validates a refresh token and returns its trusted claims.
+func (m *Manager) ParseRefreshToken(encodedToken string) (*RefreshClaims, error) {
+	if strings.TrimSpace(encodedToken) == "" {
+		return nil, dto.ErrInvalidRefreshToken
+	}
+
+	claims := &RefreshClaims{}
+	if err := m.parse(encodedToken, claims, m.refreshSecret); err != nil {
+		return nil, fmt.Errorf("%w: %v", dto.ErrInvalidRefreshToken, err)
+	}
+	if err := validateRegisteredClaims(claims.UserID, claims.RegisteredClaims, m.refreshTTL); err != nil {
+		return nil, fmt.Errorf("%w: %v", dto.ErrInvalidRefreshToken, err)
+	}
+	if claims.TokenType != TokenTypeRefresh {
+		return nil, fmt.Errorf("%w: unexpected token type", dto.ErrInvalidRefreshToken)
+	}
+
+	return claims, nil
+}
+
+func (m *Manager) newRegisteredClaims(userID int64, ttl time.Duration) (jwtlib.RegisteredClaims, error) {
+	tokenID, err := newTokenID()
+	if err != nil {
+		return jwtlib.RegisteredClaims{}, err
+	}
+
+	issuedAt := m.now().UTC()
+	return jwtlib.RegisteredClaims{
+		Issuer:    m.issuer,
+		Subject:   strconv.FormatInt(userID, 10),
+		ExpiresAt: jwtlib.NewNumericDate(issuedAt.Add(ttl)),
+		IssuedAt:  jwtlib.NewNumericDate(issuedAt),
+		ID:        tokenID,
+	}, nil
+}
+
+func (m *Manager) parse(encodedToken string, claims jwtlib.Claims, secret []byte) error {
 	token, err := jwtlib.ParseWithClaims(
 		encodedToken,
 		claims,
@@ -119,7 +199,7 @@ func (m *Manager) ParseAccessToken(encodedToken string) (*Claims, error) {
 			if token.Method != jwtlib.SigningMethodHS256 {
 				return nil, fmt.Errorf("unexpected signing algorithm %q", token.Method.Alg())
 			}
-			return m.secret, nil
+			return secret, nil
 		},
 		jwtlib.WithValidMethods([]string{jwtlib.SigningMethodHS256.Alg()}),
 		jwtlib.WithIssuer(m.issuer),
@@ -127,26 +207,22 @@ func (m *Manager) ParseAccessToken(encodedToken string) (*Claims, error) {
 		jwtlib.WithIssuedAt(),
 		jwtlib.WithTimeFunc(m.now),
 	)
-	if err != nil || !token.Valid {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
+	if err != nil {
+		return err
+	}
+	if !token.Valid {
+		return errors.New("token is not valid")
 	}
 
-	if err := m.validateClaims(claims); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
-	}
-
-	return claims, nil
+	return nil
 }
 
-func (m *Manager) validateClaims(claims *Claims) error {
-	if claims.UserID <= 0 {
-		return ErrInvalidUserID
+func validateRegisteredClaims(userID int64, claims jwtlib.RegisteredClaims, maximumTTL time.Duration) error {
+	if userID <= 0 {
+		return dto.ErrInvalidUserID
 	}
-	if claims.Subject != strconv.FormatInt(claims.UserID, 10) {
+	if claims.Subject != strconv.FormatInt(userID, 10) {
 		return errors.New("jwt subject does not match user ID")
-	}
-	if strings.TrimSpace(claims.Role) == "" {
-		return ErrRoleRequired
 	}
 	if claims.IssuedAt == nil || claims.ExpiresAt == nil {
 		return errors.New("jwt timestamps are required")
@@ -156,11 +232,21 @@ func (m *Manager) validateClaims(claims *Claims) error {
 	}
 
 	lifetime := claims.ExpiresAt.Time.Sub(claims.IssuedAt.Time)
-	if lifetime <= 0 || lifetime > m.ttl {
+	if lifetime <= 0 || lifetime > maximumTTL {
 		return errors.New("jwt token lifetime is invalid")
 	}
 
 	return nil
+}
+
+func sign(claims jwtlib.Claims, secret []byte, tokenType string) (string, error) {
+	token := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, claims)
+	signedToken, err := token.SignedString(secret)
+	if err != nil {
+		return "", fmt.Errorf("sign jwt %s token: %w", tokenType, err)
+	}
+
+	return signedToken, nil
 }
 
 func newTokenID() (string, error) {

@@ -30,7 +30,13 @@ import (
 // @name Authorization
 func main() {
 	cfg := config.Load()
-	tokens, err := jwtmanager.NewManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTAccessTokenTTL)
+	tokens, err := jwtmanager.NewManager(
+		cfg.JWTSecret,
+		cfg.JWTRefreshSecret,
+		cfg.JWTIssuer,
+		cfg.JWTAccessTokenTTL,
+		cfg.JWTRefreshTokenTTL,
+	)
 	if err != nil {
 		log.Fatalf("invalid JWT configuration: %v", err)
 	}
@@ -61,7 +67,7 @@ func main() {
 	log.Println("connected to database")
 
 	// Build and run the router
-	r := router.New(pool, authDB, tokens)
+	r := router.New(pool, authDB, tokens, cfg.RefreshCookieSecure)
 	log.Printf("server starting on :%s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("server error: %v", err)
