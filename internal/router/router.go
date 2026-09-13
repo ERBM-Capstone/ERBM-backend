@@ -3,6 +3,7 @@ package router
 import (
 	"time"
 
+	_ "github.com/ERBM-Capstone/ERBM-backend/docs"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/handler"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
 	jwtmanager "github.com/ERBM-Capstone/ERBM-backend/internal/pkg/jwt"
@@ -11,6 +12,8 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -34,6 +37,7 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 
 		MaxAge: 12 * time.Hour,
 	}))
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// ── API v1 ────────────────────────────────────────────────────────────────
 	v1 := r.Group("/api/v1")

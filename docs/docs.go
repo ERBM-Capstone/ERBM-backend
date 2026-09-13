@@ -24,7 +24,7 @@ const docTemplate = `{
     "paths": {
         "/api/v1/auth/login": {
             "post": {
-                "description": "Verifies an active user's credentials and returns a JWT access token.",
+                "description": "Verifies an active user's credentials, returns an access token, and sets an HttpOnly refresh cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -57,6 +57,52 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "description": "Clears the refresh-token cookie. Tokens are not revoked server-side.",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Log out",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/refresh": {
+            "post": {
+                "description": "Validates the HttpOnly refresh cookie and returns a new access token.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Refresh an access token",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LoginResponse"
                         }
                     },
                     "401": {
@@ -400,9 +446,6 @@ const docTemplate = `{
                 },
                 "expires_in": {
                     "type": "integer"
-                },
-                "token_type": {
-                    "type": "string"
                 }
             }
         },

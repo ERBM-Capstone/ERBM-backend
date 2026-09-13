@@ -69,7 +69,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Description  Validates the HttpOnly refresh cookie and returns a new access token.
 // @Tags         auth
 // @Produce      json
-// @Param        refresh_token  cookie    string  true  "Refresh token"
 // @Success      200            {object}  dto.LoginResponse
 // @Failure      401            {object}  dto.ErrorResponse
 // @Failure      500            {object}  dto.ErrorResponse
