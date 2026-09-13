@@ -16,6 +16,7 @@ var (
 	ErrForbidden          = errors.New("forbidden")
 	ErrBadRequest         = errors.New("bad request")
 	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrAccountLocked      = errors.New("account temporarily locked")
 	ErrInternalServer     = errors.New("internal server error")
 
 	// Example resource
@@ -32,6 +33,7 @@ var ErrorStatusMap = map[error]int{
 	ErrForbidden:          http.StatusForbidden,
 	ErrBadRequest:         http.StatusBadRequest,
 	ErrInvalidCredentials: http.StatusUnauthorized,
+	ErrAccountLocked:      http.StatusLocked,
 	ErrInternalServer:     http.StatusInternalServerError,
 	ErrExampleNotFound:    http.StatusNotFound,
 }

@@ -15,6 +15,7 @@ import (
 type authRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*model.User, string, error)
 	GetUserByID(ctx context.Context, userID int64) (*model.User, string, error)
+	RecordFailedLogin(ctx context.Context, userID int64, maxAttempts int, lockDuration time.Duration) error
 	UpdateLastLogin(ctx context.Context, userID int64) error
 }
 
@@ -25,15 +26,21 @@ type tokenManager interface {
 	AccessTokenTTL() time.Duration
 }
 
+const (
+	maxFailedLoginAttempts = 5
+	loginLockDuration      = 3 * time.Minute
+)
+
 // AuthService implements manual user authentication.
 type AuthService struct {
 	repo   authRepository
 	tokens tokenManager
+	now    func() time.Time
 }
 
 // NewAuthService creates an authentication service.
 func NewAuthService(repo authRepository, tokens tokenManager) *AuthService {
-	return &AuthService{repo: repo, tokens: tokens}
+	return &AuthService{repo: repo, tokens: tokens, now: time.Now}
 }
 
 // Login verifies credentials and returns an access-token response plus a separate
@@ -50,7 +57,13 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 	if user.PasswordHash == nil {
 		return nil, "", dto.ErrInvalidCredentials
 	}
+	if user.LockedUntil != nil && user.LockedUntil.After(s.now()) {
+		return nil, "", dto.ErrAccountLocked
+	}
 	if err := passwordhash.VerifyPassword(req.Password, *user.PasswordHash); err != nil {
+		if err := s.repo.RecordFailedLogin(ctx, user.ID, maxFailedLoginAttempts, loginLockDuration); err != nil {
+			return nil, "", dto.ErrInternalServer
+		}
 		return nil, "", dto.ErrInvalidCredentials
 	}
 	if user.Status != model.UserStatusActive {
