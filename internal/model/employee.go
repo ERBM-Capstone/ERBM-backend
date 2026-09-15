@@ -1,35 +1,21 @@
 package model
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
 
-// Employee is the local representation of an employee synchronized from Empeo.
+// Employee contains manually managed employment and profile information.
 type Employee struct {
-	ID                 int64
-	ExternalEmployeeID string
-	Email              *string
-	FirstName          string
-	LastName           string
-	FirstNameEN        *string
-	LastNameEN         *string
-	Nickname           *string
-	NicknameEN         *string
-	MobileNo           *string
-	DateHired          *time.Time
-	Position           *string
-	EmploymentStatusID *int
-	EmploymentStatus   *string
-	IsActive           bool
-	OrganizationLevel1 *string
-	OrganizationLevel2 *string
-	OrganizationLevel3 *string
-	OrganizationLevel4 *string
-	OrganizationLevel5 *string
-	OrganizationLevel6 *string
-	RawPayload         json.RawMessage
-	LastSyncedAt       *time.Time
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                int64
+	FirstName         string
+	LastName          string
+	Position          string
+	Email             string
+	DateHired         time.Time
+	EmploymentEndDate *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+// IsActive derives employment activity from the confirmed end-date rule.
+func (e Employee) IsActive() bool {
+	return e.EmploymentEndDate == nil
 }

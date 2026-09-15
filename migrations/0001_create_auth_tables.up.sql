@@ -8,56 +8,29 @@ CREATE TABLE roles (
 
 -- Insert initial roles
 INSERT INTO roles (code, name) VALUES
+('EMPLOYEE', 'Employee'),
 ('ADMIN', 'Administrator'),
 ('PC', 'Project Coordinator'),
 ('PM', 'Project Manager'),
 ('ACCOUNTING', 'Accounting');
 
 
+
 -- Create employees table
 CREATE TABLE employees (
-    id                      BIGSERIAL    PRIMARY KEY,
-    external_employee_id    VARCHAR(255) NOT NULL UNIQUE,
-    
-    email                   VARCHAR(255),
-    first_name              VARCHAR(255) NOT NULL,
-    last_name               VARCHAR(255) NOT NULL,
-    first_name_en           VARCHAR(255),
-    last_name_en            VARCHAR(255),
-    nickname                VARCHAR(255),
-    nickname_en             VARCHAR(255),
-    mobile_no               VARCHAR(50),
-    
-    date_hired              DATE,
-    position                VARCHAR(255),
-    
-    employment_status_id    INTEGER,
-    employment_status       VARCHAR(100),
-    is_active               BOOLEAN      NOT NULL DEFAULT true,
-    
-    organization_level1     VARCHAR(255),
-    organization_level2     VARCHAR(255),
-    organization_level3     VARCHAR(255),
-    organization_level4     VARCHAR(255),
-    organization_level5     VARCHAR(255),
-    organization_level6     VARCHAR(255),
-    
-    raw_payload             JSONB,
-    
-    last_synced_at          TIMESTAMPTZ,
-    created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    id                  BIGSERIAL    PRIMARY KEY,
+    first_name          VARCHAR(255) NOT NULL,
+    last_name           VARCHAR(255) NOT NULL,
+    position            VARCHAR(255) NOT NULL,
+    email               VARCHAR(255) NOT NULL UNIQUE,
+    date_hired          DATE         NOT NULL,
+    employment_end_date DATE,
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- Create indexes for employees
-CREATE INDEX idx_employees_email ON employees (email);
-CREATE INDEX idx_employees_is_active ON employees (is_active);
-
-COMMENT ON COLUMN employees.external_employee_id IS 'empeo EmployeeRefId';
-COMMENT ON COLUMN employees.employment_status_id IS 'raw empeo StatusId';
-COMMENT ON COLUMN employees.employment_status IS 'raw empeo Status label';
-COMMENT ON COLUMN employees.is_active IS 'interpreted active flag';
-COMMENT ON COLUMN employees.raw_payload IS 'raw empeo response for debugging';
+COMMENT ON COLUMN employees.employment_end_date IS
+'null means currently employed; any value means inactive';
 
 -- Create users table
 CREATE TABLE users (
@@ -67,7 +40,7 @@ CREATE TABLE users (
     email                   VARCHAR(255) NOT NULL UNIQUE,
     password_hash           VARCHAR(255),
     
-    role_id                 INTEGER      NOT NULL DEFAULT 1 REFERENCES roles(id) ON DELETE RESTRICT,
+    role_id                 INTEGER      NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
     
     status                  VARCHAR(50)  NOT NULL DEFAULT 'INVITED',
     first_login             BOOLEAN      NOT NULL DEFAULT true,
