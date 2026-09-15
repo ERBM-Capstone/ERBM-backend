@@ -11,7 +11,7 @@ const (
 	UserStatusDeactivated UserStatus = "DEACTIVATED"
 )
 
-// User is an ERBM account associated with a synchronized employee.
+// User is an ERBM account associated with a manually managed employee.
 type User struct {
 	ID                  int64
 	EmployeeID          int64

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -27,7 +28,7 @@ type tokenManager interface {
 }
 
 const (
-	maxFailedLoginAttempts = 5
+	maxFailedLoginAttempts = 10
 	loginLockDuration      = 3 * time.Minute
 )
 
@@ -48,6 +49,7 @@ func NewAuthService(repo authRepository, tokens tokenManager) *AuthService {
 func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, string, error) {
 	user, role, err := s.repo.GetUserByEmail(ctx, strings.TrimSpace(req.Email))
 	if err != nil {
+		fmt.Println("1")
 		if errors.Is(err, dto.ErrInvalidCredentials) {
 			return nil, "", dto.ErrInvalidCredentials
 		}
@@ -55,30 +57,38 @@ func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 	}
 
 	if user.PasswordHash == nil {
+		fmt.Println("2")
 		return nil, "", dto.ErrInvalidCredentials
 	}
 	if user.LockedUntil != nil && user.LockedUntil.After(s.now()) {
+		fmt.Println("3")
 		return nil, "", dto.ErrAccountLocked
 	}
 	if err := passwordhash.VerifyPassword(req.Password, *user.PasswordHash); err != nil {
+		fmt.Println("Password verification failed")
 		if err := s.repo.RecordFailedLogin(ctx, user.ID, maxFailedLoginAttempts, loginLockDuration); err != nil {
+
 			return nil, "", dto.ErrInternalServer
 		}
 		return nil, "", dto.ErrInvalidCredentials
 	}
 	if user.Status != model.UserStatusActive {
+		fmt.Println("4")
 		return nil, "", dto.ErrInvalidCredentials
 	}
 
 	accessToken, err := s.tokens.GenerateAccessToken(user.ID, role)
 	if err != nil {
+
 		return nil, "", dto.ErrInternalServer
 	}
 	refreshToken, err := s.tokens.GenerateRefreshToken(user.ID)
 	if err != nil {
+
 		return nil, "", dto.ErrInternalServer
 	}
 	if err := s.repo.UpdateLastLogin(ctx, user.ID); err != nil {
+
 		return nil, "", dto.ErrInternalServer
 	}
 

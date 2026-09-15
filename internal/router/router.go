@@ -54,7 +54,18 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	}
 
 	protected := v1.Group("")
-	protected.Use(middleware.RequireAuth(tokens))
+	// protected.Use(middleware.RequireAuth(tokens))
+
+	// ── Employees ─────────────────────────────────────────────────────────────
+	employeesRepo := repository.NewEmployeeRepository(authDB)
+	usersRepo := repository.NewUserRepository(authDB)
+	employeesSvc := service.NewEmployeeService(employeesRepo, usersRepo)
+	employeesHandler := handler.NewEmployeeHandler(employeesSvc)
+	employees := protected.Group("/employees")
+	// employees.Use(middleware.RequireRole("ADMIN"))
+	{
+		employees.POST("", employeesHandler.Create)
+	}
 
 	// ── Example ───────────────────────────────────────────────────────────────
 	examplesRepo := repository.NewExampleRepository(pool)
