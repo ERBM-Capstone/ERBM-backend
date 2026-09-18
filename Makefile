@@ -31,7 +31,7 @@ run: build
 
 ## swagger: regenerate Swagger docs from handler annotations
 swagger:
-	go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/server/main.go -o docs
+	go run github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs
 
 # ── Database migrations ───────────────────────────────────────────────────────
 
@@ -43,13 +43,16 @@ migrate-up:
 migrate-down:
 	go run ./cmd/migrate down
 
-## migrate-create: scaffold a new timestamped migration file (prompts for name)
+## migrate-create: scaffold paired sequential up/down migration files (prompts for name)
 migrate-create:
 	@read -p "Migration name: " name; \
-	timestamp=$$(date +%Y%m%d%H%M%S); \
-	filename="migrations/$${timestamp}_$${name}.sql"; \
-	printf "-- migrate:up\n\n\n-- migrate:down\n\n" > $$filename; \
-	echo "Created $$filename"
+	last=$$(find migrations -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9]_*.up.sql' -exec basename {} .up.sql \; | sed 's/_.*//' | sort -n | tail -n 1); \
+	next=$$(awk -v n="$${last:-0}" 'BEGIN { printf "%04d", n + 1 }'); \
+	base="migrations/$${next}_$${name}"; \
+	cp migrations/.template.up.sql "$${base}.up.sql"; \
+	cp migrations/.template.down.sql "$${base}.down.sql"; \
+	echo "Created $${base}.up.sql"; \
+	echo "Created $${base}.down.sql"
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 

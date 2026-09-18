@@ -22,7 +22,6 @@ func NewEmployeeRepository(db *gorm.DB) *EmployeeRepository {
 	return &EmployeeRepository{db: db}
 }
 
-
 // BulkCreate inserts employees using the caller's transaction. The transaction
 // is deliberately not committed here so a service can atomically create the
 // related user records in the same transaction.

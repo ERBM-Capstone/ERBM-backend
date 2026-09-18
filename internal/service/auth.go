@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -20,6 +19,10 @@ type authRepository interface {
 	UpdateLastLogin(ctx context.Context, userID int64) error
 }
 
+type LoginPolicy struct {
+	MaxFailedAttempts int
+	LockDuration      time.Duration
+}
 type tokenManager interface {
 	GenerateAccessToken(userID int64, role string) (string, error)
 	GenerateRefreshToken(userID int64) (string, error)
@@ -28,52 +31,53 @@ type tokenManager interface {
 }
 
 const (
-	maxFailedLoginAttempts = 10
-	loginLockDuration      = 3 * time.Minute
+
+	// dummyPasswordHash keeps unknown-email logins on the same bcrypt code path
+	// as invalid-password logins. It is not associated with any user account.
+	dummyPasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
 )
 
 // AuthService implements manual user authentication.
 type AuthService struct {
 	repo   authRepository
 	tokens tokenManager
+	policy LoginPolicy
 	now    func() time.Time
 }
 
 // NewAuthService creates an authentication service.
-func NewAuthService(repo authRepository, tokens tokenManager) *AuthService {
-	return &AuthService{repo: repo, tokens: tokens, now: time.Now}
+func NewAuthService(repo authRepository, tokens tokenManager, policy LoginPolicy) *AuthService {
+	return &AuthService{repo: repo, tokens: tokens, now: time.Now, policy: policy}
+
 }
 
 // Login verifies credentials and returns an access-token response plus a separate
 // refresh token for the handler to store in an HttpOnly cookie.
 func (s *AuthService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, string, error) {
+
 	user, role, err := s.repo.GetUserByEmail(ctx, strings.TrimSpace(req.Email))
 	if err != nil {
-		fmt.Println("1")
 		if errors.Is(err, dto.ErrInvalidCredentials) {
+			_ = passwordhash.VerifyPassword(req.Password, dummyPasswordHash)
 			return nil, "", dto.ErrInvalidCredentials
 		}
 		return nil, "", dto.ErrInternalServer
 	}
 
 	if user.PasswordHash == nil {
-		fmt.Println("2")
 		return nil, "", dto.ErrInvalidCredentials
 	}
 	if user.LockedUntil != nil && user.LockedUntil.After(s.now()) {
-		fmt.Println("3")
-		return nil, "", dto.ErrAccountLocked
+		return nil, "", dto.ErrInvalidCredentials
 	}
 	if err := passwordhash.VerifyPassword(req.Password, *user.PasswordHash); err != nil {
-		fmt.Println("Password verification failed")
-		if err := s.repo.RecordFailedLogin(ctx, user.ID, maxFailedLoginAttempts, loginLockDuration); err != nil {
+		if err := s.repo.RecordFailedLogin(ctx, user.ID, s.policy.MaxFailedAttempts, s.policy.LockDuration); err != nil {
 
 			return nil, "", dto.ErrInternalServer
 		}
 		return nil, "", dto.ErrInvalidCredentials
 	}
 	if user.Status != model.UserStatusActive {
-		fmt.Println("4")
 		return nil, "", dto.ErrInvalidCredentials
 	}
 

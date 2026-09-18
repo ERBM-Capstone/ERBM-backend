@@ -25,23 +25,6 @@ definitions:
     - last_name
     - position
     type: object
-  dto.CreateExampleRequest:
-    properties:
-      description:
-        maxLength: 1000
-        type: string
-      name:
-        maxLength: 255
-        minLength: 1
-        type: string
-    required:
-    - name
-    type: object
-  dto.DeleteResponse:
-    properties:
-      message:
-        type: string
-    type: object
   dto.EmployeeResponse:
     properties:
       created_at:
@@ -70,23 +53,6 @@ definitions:
       error:
         type: string
     type: object
-  dto.ExampleResponse:
-    properties:
-      created_at:
-        type: string
-      created_by:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      status:
-        $ref: '#/definitions/model.ExampleStatus'
-      updated_at:
-        type: string
-    type: object
   dto.LoginRequest:
     properties:
       email:
@@ -105,40 +71,17 @@ definitions:
       expires_in:
         type: integer
     type: object
-  dto.UpdateExampleRequest:
-    properties:
-      description:
-        maxLength: 1000
-        type: string
-      name:
-        maxLength: 255
-        minLength: 1
-        type: string
-      status:
-        allOf:
-        - $ref: '#/definitions/model.ExampleStatus'
-        enum:
-        - active
-        - inactive
-    type: object
-  model.ExampleStatus:
-    enum:
-    - active
-    - inactive
-    type: string
-    x-enum-varnames:
-    - ExampleStatusActive
-    - ExampleStatusInactive
 host: localhost:8080
 info:
   contact:
     email: support@your-org.com
     name: API Support
-  description: Backend service for project-hub.
+  description: Backend service for the Expense Reimbursement and Bill Management System
+    (ERBM).
   license:
     name: MIT
   termsOfService: http://swagger.io/terms/
-  title: Project Hub API
+  title: ERBM API
   version: "1.0"
 paths:
   /api/v1/auth/login:
@@ -256,160 +199,6 @@ paths:
       summary: Create employee
       tags:
       - employees
-  /api/v1/examples:
-    get:
-      description: Returns all non-deleted examples ordered by updated_at DESC.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.ExampleResponse'
-            type: array
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List examples
-      tags:
-      - examples
-    post:
-      consumes:
-      - application/json
-      description: Inserts a new example. Requires admin or editor role.
-      parameters:
-      - description: Create payload
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateExampleRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/dto.ExampleResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Create example
-      tags:
-      - examples
-  /api/v1/examples/{id}:
-    delete:
-      description: Soft-deletes an example. Requires admin or editor role.
-      parameters:
-      - description: Example UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.DeleteResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "410":
-          description: Gone
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete example
-      tags:
-      - examples
-    get:
-      description: Returns a single non-deleted example.
-      parameters:
-      - description: Example UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.ExampleResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get example by ID
-      tags:
-      - examples
-    put:
-      consumes:
-      - application/json
-      description: Partially updates an existing non-deleted example. Requires admin
-        or editor role.
-      parameters:
-      - description: Example UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Update payload
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateExampleRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.ExampleResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Update example
-      tags:
-      - examples
 securityDefinitions:
   BearerAuth:
     in: header

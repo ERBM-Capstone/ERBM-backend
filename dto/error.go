@@ -58,5 +58,5 @@ func HandleError(c *gin.Context, err error) {
 		c.JSON(status, ErrorResponse{Error: err.Error()})
 		return
 	}
-	c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+	c.JSON(http.StatusInternalServerError, ErrorResponse{Error: ErrInternalServer.Error()})
 }

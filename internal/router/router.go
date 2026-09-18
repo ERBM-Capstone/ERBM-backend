@@ -18,7 +18,7 @@ import (
 )
 
 // New builds and returns the root Gin engine with all routes registered.
-func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool) *gin.Engine {
+func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, loginPolicy service.LoginPolicy) *gin.Engine {
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
@@ -44,7 +44,7 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 
 	// ── Authentication ────────────────────────────────────────────────────────
 	authRepo := repository.NewAuthRepository(authDB)
-	authSvc := service.NewAuthService(authRepo, tokens)
+	authSvc := service.NewAuthService(authRepo, tokens, loginPolicy)
 	authHandler := handler.NewAuthHandler(authSvc, tokens.RefreshTokenTTL(), refreshCookieSecure)
 	auth := v1.Group("/auth")
 	{
@@ -54,7 +54,7 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	}
 
 	protected := v1.Group("")
-	// protected.Use(middleware.RequireAuth(tokens))
+	protected.Use(middleware.RequireAuth(tokens))
 
 	// ── Employees ─────────────────────────────────────────────────────────────
 	employeesRepo := repository.NewEmployeeRepository(authDB)
@@ -62,28 +62,9 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	employeesSvc := service.NewEmployeeService(employeesRepo, usersRepo)
 	employeesHandler := handler.NewEmployeeHandler(employeesSvc)
 	employees := protected.Group("/employees")
-	// employees.Use(middleware.RequireRole("ADMIN"))
+	employees.Use(middleware.RequireRole("ADMIN"))
 	{
 		employees.POST("", employeesHandler.Create)
-	}
-
-	// ── Example ───────────────────────────────────────────────────────────────
-	examplesRepo := repository.NewExampleRepository(pool)
-	examplesSvc := service.NewExampleService(examplesRepo)
-	examplesHandler := handler.NewExampleHandler(examplesSvc)
-
-	examples := protected.Group("/examples")
-	{
-		examples.GET("", examplesHandler.List)
-		examples.GET("/:id", examplesHandler.GetByID)
-
-		examplesWrite := examples.Group("")
-		examplesWrite.Use(middleware.RequireRole("admin", "editor"))
-		{
-			examplesWrite.POST("", examplesHandler.Create)
-			examplesWrite.PUT("/:id", examplesHandler.Update)
-			examplesWrite.DELETE("/:id", examplesHandler.Delete)
-		}
 	}
 
 	return r

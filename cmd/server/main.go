@@ -7,14 +7,15 @@ import (
 	"github.com/ERBM-Capstone/ERBM-backend/config"
 	jwtmanager "github.com/ERBM-Capstone/ERBM-backend/internal/pkg/jwt"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/router"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// @title           Project Hub API
+// @title           ERBM API
 // @version         1.0
-// @description     Backend service for project-hub.
+// @description     Backend service for the Expense Reimbursement and Bill Management System (ERBM).
 // @termsOfService  http://swagger.io/terms/
 
 // @contact.name   API Support
@@ -67,7 +68,10 @@ func main() {
 	log.Println("connected to database")
 
 	// Build and run the router
-	r := router.New(pool, authDB, tokens, cfg.RefreshCookieSecure)
+	r := router.New(pool, authDB, tokens, cfg.RefreshCookieSecure, service.LoginPolicy{
+		MaxFailedAttempts: cfg.AuthMaxFailedLoginAttempts,
+		LockDuration:      cfg.AuthLoginLockDuration,
+	})
 	log.Printf("server starting on :%s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("server error: %v", err)

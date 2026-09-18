@@ -11,7 +11,7 @@ Management System (ERBM).
 - Implement business rules and workflow behavior.
 - Design PostgreSQL schemas and migrations.
 - Implement authentication and authorization.
-- Integrate external services such as Empeo and OCR.
+- Integrate external services such as OCR.
 - Add tests for changed backend behavior.
 
 ## Project knowledge
