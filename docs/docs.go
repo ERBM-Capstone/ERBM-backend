@@ -127,7 +127,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates employee profiles and invited login accounts for active employees. Role is derived from position. Requires the ADMIN role.",
+                "description": "Creates employee profiles and invited login accounts for active employees. role_code is required and independent of the HR position. Requires the ADMIN role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -204,7 +204,8 @@ const docTemplate = `{
                 "email",
                 "first_name",
                 "last_name",
-                "position"
+                "position",
+                "role_code"
             ],
             "properties": {
                 "date_hired": {
@@ -228,6 +229,10 @@ const docTemplate = `{
                 "position": {
                     "type": "string",
                     "maxLength": 255
+                },
+                "role_code": {
+                    "type": "string",
+                    "maxLength": 50
                 }
             }
         },

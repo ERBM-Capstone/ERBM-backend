@@ -3,14 +3,17 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 type employeeService interface {
-	Create(ctx context.Context, req []*model.Employee) ([]*model.Employee, error)
+	Create(ctx context.Context, actorID int64, req []service.EmployeeProvision) ([]*model.Employee, error)
 }
 
 // EmployeeHandler exposes HTTP endpoints for employees.
@@ -25,7 +28,7 @@ func NewEmployeeHandler(svc employeeService) *EmployeeHandler {
 
 // Create godoc
 // @Summary      Create employee
-// @Description  Creates employee profiles and invited login accounts for active employees. Role is derived from position. Requires the ADMIN role.
+// @Description  Creates employee profiles and invited login accounts for active employees. role_code is required and independent of the HR position. Requires the ADMIN role.
 // @Tags         employees
 // @Accept       json
 // @Produce      json
@@ -44,17 +47,34 @@ func (h *EmployeeHandler) Create(c *gin.Context) {
 		dto.HandleError(c, dto.ErrBadRequest)
 		return
 	}
-	var employees []*model.Employee
+	actorValue, exists := c.Get(middleware.ContextKeyUserID)
+	actorID, ok := actorValue.(int64)
+	if !exists || !ok || actorID <= 0 {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+
+	provisions := make([]service.EmployeeProvision, 0, len(req))
+	seenEmails := make(map[string]struct{}, len(req))
 	for _, r := range req {
 		employee, err := dto.ToEmployee(&r)
 		if err != nil {
 			dto.HandleError(c, dto.ErrBadRequest)
 			return
 		}
-		employees = append(employees, employee)
+		if _, exists := seenEmails[employee.Email]; exists {
+			dto.HandleError(c, dto.ErrEmployeeEmailExists)
+			return
+		}
+		seenEmails[employee.Email] = struct{}{}
+
+		provisions = append(provisions, service.EmployeeProvision{
+			Employee: employee,
+			RoleCode: strings.ToUpper(strings.TrimSpace(r.RoleCode)),
+		})
 	}
 
-	employees, err := h.service.Create(c.Request.Context(), employees)
+	employees, err := h.service.Create(c.Request.Context(), actorID, provisions)
 	if err != nil {
 		dto.HandleError(c, err)
 		return

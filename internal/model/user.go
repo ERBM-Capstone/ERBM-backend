@@ -24,5 +24,7 @@ type User struct {
 	LockedUntil         *time.Time
 	LastLoginAt         *time.Time
 	CreatedAt           time.Time
+	CreatedBy           *int64
 	UpdatedAt           time.Time
+	UpdatedBy           *int64
 }

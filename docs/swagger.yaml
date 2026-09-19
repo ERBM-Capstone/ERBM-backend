@@ -18,12 +18,16 @@ definitions:
       position:
         maxLength: 255
         type: string
+      role_code:
+        maxLength: 50
+        type: string
     required:
     - date_hired
     - email
     - first_name
     - last_name
     - position
+    - role_code
     type: object
   dto.EmployeeResponse:
     properties:
@@ -155,7 +159,8 @@ paths:
       consumes:
       - application/json
       description: Creates employee profiles and invited login accounts for active
-        employees. Role is derived from position. Requires the ADMIN role.
+        employees. role_code is required and independent of the HR position. Requires
+        the ADMIN role.
       parameters:
       - description: Create employee payloads
         in: body

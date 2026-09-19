@@ -16,6 +16,7 @@ type CreateEmployeeRequest struct {
 	Position          string  `json:"position" binding:"required,max=255"`
 	Email             string  `json:"email" binding:"required,email,max=255"`
 	DateHired         string  `json:"date_hired" binding:"required,datetime=2006-01-02"`
+	RoleCode          string  `json:"role_code" binding:"required,max=50"`
 	EmploymentEndDate *string `json:"employment_end_date" binding:"omitempty,datetime=2006-01-02"`
 }
 
@@ -33,12 +34,16 @@ func ToEmployee(req *CreateEmployeeRequest) (*model.Employee, error) {
 	}
 
 	var employmentEndDate *time.Time
+
 	if req.EmploymentEndDate != nil {
 		parsed, err := time.Parse(employeeDateFormat, *req.EmploymentEndDate)
 		if err != nil {
 			return nil, err
 		}
 		employmentEndDate = &parsed
+	}
+	if employmentEndDate != nil && employmentEndDate.Before(dateHired) {
+		return nil, ErrBadRequest
 	}
 
 	return &model.Employee{
@@ -61,8 +66,6 @@ type EmployeeResponse struct {
 	DateHired         string  `json:"date_hired"`
 	EmploymentEndDate *string `json:"employment_end_date,omitempty"`
 	IsActive          bool    `json:"is_active"`
-	CreatedAt         string  `json:"created_at"`
-	UpdatedAt         string  `json:"updated_at"`
 }
 
 // ToEmployeeResponse converts an employee model to its API response shape.
@@ -82,7 +85,5 @@ func ToEmployeeResponse(employee *model.Employee) EmployeeResponse {
 		DateHired:         employee.DateHired.Format(employeeDateFormat),
 		EmploymentEndDate: employmentEndDate,
 		IsActive:          employee.IsActive(),
-		CreatedAt:         employee.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         employee.UpdatedAt.Format(time.RFC3339),
 	}
 }

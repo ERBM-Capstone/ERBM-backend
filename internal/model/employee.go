@@ -12,7 +12,9 @@ type Employee struct {
 	DateHired         time.Time
 	EmploymentEndDate *time.Time
 	CreatedAt         time.Time
+	CreatedBy         *int64
 	UpdatedAt         time.Time
+	UpdatedBy         *int64
 }
 
 // IsActive derives employment activity from the confirmed end-date rule.
