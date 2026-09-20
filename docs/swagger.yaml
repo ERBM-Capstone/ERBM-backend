@@ -1,5 +1,18 @@
 basePath: /
 definitions:
+  dto.BaseResponse:
+    properties:
+      data: {}
+      errors:
+        items: {}
+        type: array
+      message:
+        type: string
+      meta:
+        $ref: '#/definitions/dto.Meta'
+      success:
+        type: boolean
+    type: object
   dto.CreateEmployeeRequest:
     properties:
       date_hired:
@@ -29,34 +42,6 @@ definitions:
     - position
     - role_code
     type: object
-  dto.EmployeeResponse:
-    properties:
-      created_at:
-        type: string
-      date_hired:
-        type: string
-      email:
-        type: string
-      employment_end_date:
-        type: string
-      first_name:
-        type: string
-      id:
-        type: integer
-      is_active:
-        type: boolean
-      last_name:
-        type: string
-      position:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  dto.ErrorResponse:
-    properties:
-      error:
-        type: string
-    type: object
   dto.LoginRequest:
     properties:
       email:
@@ -68,11 +53,13 @@ definitions:
     - email
     - password
     type: object
-  dto.LoginResponse:
+  dto.Meta:
     properties:
-      access_token:
-        type: string
-      expires_in:
+      page:
+        type: integer
+      per_page:
+        type: integer
+      total:
         type: integer
     type: object
 host: localhost:8080
@@ -107,19 +94,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.LoginResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
       summary: Log in with email and password
       tags:
       - auth
@@ -142,19 +129,62 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.LoginResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
       summary: Refresh an access token
       tags:
       - auth
   /api/v1/employees:
+    get:
+      description: Returns employees in a paginated standard response envelope. Requires
+        the ADMIN role.
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: List employees
+      tags:
+      - employees
     post:
       consumes:
       - application/json
@@ -176,29 +206,27 @@ paths:
         "201":
           description: Created
           schema:
-            items:
-              $ref: '#/definitions/dto.EmployeeResponse'
-            type: array
+            $ref: '#/definitions/dto.BaseResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
       security:
       - BearerAuth: []
       summary: Create employee

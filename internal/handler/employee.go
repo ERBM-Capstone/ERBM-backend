@@ -14,6 +14,7 @@ import (
 
 type employeeService interface {
 	Create(ctx context.Context, actorID int64, req []service.EmployeeProvision) ([]*model.Employee, error)
+	List(ctx context.Context, page int, pageSize int) ([]*model.Employee, int64, error)
 }
 
 // EmployeeHandler exposes HTTP endpoints for employees.
@@ -34,12 +35,12 @@ func NewEmployeeHandler(svc employeeService) *EmployeeHandler {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body      []dto.CreateEmployeeRequest  true  "Create employee payloads"
-// @Success      201   {array}   dto.EmployeeResponse
-// @Failure      400   {object}  dto.ErrorResponse
-// @Failure      401   {object}  dto.ErrorResponse
-// @Failure      403   {object}  dto.ErrorResponse
-// @Failure      409   {object}  dto.ErrorResponse
-// @Failure      500   {object}  dto.ErrorResponse
+// @Success      201   {object}  dto.BaseResponse
+// @Failure      400   {object}  dto.BaseResponse
+// @Failure      401   {object}  dto.BaseResponse
+// @Failure      403   {object}  dto.BaseResponse
+// @Failure      409   {object}  dto.BaseResponse
+// @Failure      500   {object}  dto.BaseResponse
 // @Router       /api/v1/employees [post]
 func (h *EmployeeHandler) Create(c *gin.Context) {
 	var req []dto.CreateEmployeeRequest
@@ -85,5 +86,44 @@ func (h *EmployeeHandler) Create(c *gin.Context) {
 		res = append(res, dto.ToEmployeeResponse(employee))
 	}
 
-	c.JSON(http.StatusCreated, res)
+	dto.Created(c, res)
+}
+
+// List godoc
+// @Summary      List employees
+// @Description  Returns employees in a paginated standard response envelope. Requires the ADMIN role.
+// @Tags         employees
+// @Produce      json
+// @Security     BearerAuth
+// @Param        page      query  int  false  "Page number"       minimum(1)
+// @Param        page_size query  int  false  "Items per page"    minimum(1) maximum(100)
+// @Success      200       {object} dto.BaseResponse
+// @Failure      400       {object} dto.BaseResponse
+// @Failure      401       {object} dto.BaseResponse
+// @Failure      403       {object} dto.BaseResponse
+// @Failure      500       {object} dto.BaseResponse
+// @Router       /api/v1/employees [get]
+func (h *EmployeeHandler) List(c *gin.Context) {
+	var query dto.ListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+
+	employees, total, err := h.service.List(c.Request.Context(), query.Page, query.PageSize)
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+
+	res := make([]dto.EmployeeResponse, 0, len(employees))
+	for _, employee := range employees {
+		res = append(res, dto.ToEmployeeResponse(employee))
+	}
+
+	dto.WithMeta(c, http.StatusOK, res, "Employees retrieved", &dto.Meta{
+		Page:    query.Page,
+		PerPage: query.PageSize,
+		Total:   int(total),
+	})
 }

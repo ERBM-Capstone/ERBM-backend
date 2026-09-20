@@ -13,6 +13,7 @@ import (
 type employeeRepository interface {
 	BulkCreate(ctx context.Context, tx *gorm.DB, employees []*model.Employee) error
 	WithTx(ctx context.Context, fn func(tx *gorm.DB) error) error
+	List(ctx context.Context, page int, pageSize int) ([]*model.Employee, int64, error)
 }
 
 type userRepository interface {
@@ -111,4 +112,12 @@ func (s *EmployeeService) Create(
 	}
 
 	return employees, nil
+}
+
+func (s *EmployeeService) List(ctx context.Context, page int, pageSize int) ([]*model.Employee, int64, error) {
+	employees, total, err := s.employeeRepo.List(ctx, page, pageSize)
+	if err != nil {
+		return nil, 0, dto.ErrInternalServer
+	}
+	return employees, total, nil
 }

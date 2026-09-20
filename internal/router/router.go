@@ -64,6 +64,7 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	employees := protected.Group("/employees")
 	employees.Use(middleware.RequireRole("ADMIN"))
 	{
+		employees.GET("", employeesHandler.List)
 		employees.POST("", employeesHandler.Create)
 	}
 

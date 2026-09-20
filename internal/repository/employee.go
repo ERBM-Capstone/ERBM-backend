@@ -46,3 +46,29 @@ func (r *EmployeeRepository) BulkCreate(ctx context.Context, tx *gorm.DB, employ
 func (r *EmployeeRepository) WithTx(ctx context.Context, fn func(tx *gorm.DB) error) error {
 	return r.db.WithContext(ctx).Transaction(fn)
 }
+
+func (r *EmployeeRepository) List(
+	ctx context.Context,
+	page int,
+	pageSize int,
+) ([]*model.Employee, int64, error) {
+	var employees []*model.Employee
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&model.Employee{})
+
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	if err := db.
+		Order("id ASC").
+		Limit(pageSize).
+		Offset(offset).
+		Find(&employees).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return employees, total, nil
+}

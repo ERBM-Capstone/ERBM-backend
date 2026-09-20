@@ -42,10 +42,10 @@ func NewAuthHandler(svc authService, refreshTokenTTL time.Duration, refreshCooki
 // @Accept       json
 // @Produce      json
 // @Param        body  body      dto.LoginRequest  true  "Login credentials"
-// @Success      200   {object}  dto.LoginResponse
-// @Failure      400   {object}  dto.ErrorResponse
-// @Failure      401   {object}  dto.ErrorResponse
-// @Failure      500   {object}  dto.ErrorResponse
+// @Success      200   {object}  dto.BaseResponse
+// @Failure      400   {object}  dto.BaseResponse
+// @Failure      401   {object}  dto.BaseResponse
+// @Failure      500   {object}  dto.BaseResponse
 // @Router       /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
@@ -61,7 +61,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, refreshToken)
-	c.JSON(http.StatusOK, response)
+	dto.OK(c, response)
 }
 
 // Refresh godoc
@@ -69,9 +69,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Description  Validates the HttpOnly refresh cookie and returns a new access token.
 // @Tags         auth
 // @Produce      json
-// @Success      200            {object}  dto.LoginResponse
-// @Failure      401            {object}  dto.ErrorResponse
-// @Failure      500            {object}  dto.ErrorResponse
+// @Success      200            {object}  dto.BaseResponse
+// @Failure      401            {object}  dto.BaseResponse
+// @Failure      500            {object}  dto.BaseResponse
 // @Router       /api/v1/auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	refreshToken, err := c.Cookie(refreshCookieName)
@@ -86,7 +86,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	dto.OK(c, response)
 }
 
 // Logout godoc
@@ -97,7 +97,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // @Router       /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	h.clearRefreshCookie(c)
-	c.Status(http.StatusNoContent)
+	dto.NoContent(c)
 }
 
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, token string) {

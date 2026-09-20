@@ -3,8 +3,6 @@ package dto
 import (
 	"errors"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
 )
 
 // ── Sentinel errors ──────────────────────────────────────────────────────────
@@ -23,6 +21,17 @@ var (
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
 )
+var (
+	ErrSecretTooShort      = errors.New("jwt secret must be at least 32 bytes")
+	ErrSecretsMustDiffer   = errors.New("jwt access and refresh secrets must differ")
+	ErrIssuerRequired      = errors.New("jwt issuer is required")
+	ErrAccessTTLRequired   = errors.New("jwt access token TTL must be positive")
+	ErrRefreshTTLRequired  = errors.New("jwt refresh token TTL must be positive")
+	ErrInvalidUserID       = errors.New("jwt user ID must be positive")
+	ErrRoleRequired        = errors.New("jwt role is required")
+	ErrInvalidAccessToken  = errors.New("invalid jwt access token")
+	ErrInvalidRefreshToken = errors.New("invalid jwt refresh token")
+)
 
 // ── Error → HTTP status map ──────────────────────────────────────────────────
 
@@ -38,25 +47,4 @@ var ErrorStatusMap = map[error]int{
 	ErrInternalServer:      http.StatusInternalServerError,
 	ErrEmployeeEmailExists: http.StatusConflict,
 	ErrExampleNotFound:     http.StatusNotFound,
-}
-
-// ── Shared response helpers ──────────────────────────────────────────────────
-
-// ErrorResponse is the standard JSON error body.
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
-
-// DeleteResponse is the standard JSON body returned on a soft-delete.
-type DeleteResponse struct {
-	Message string `json:"message"`
-}
-
-// HandleError writes the appropriate HTTP status and JSON body for err.
-func HandleError(c *gin.Context, err error) {
-	if status, ok := ErrorStatusMap[err]; ok {
-		c.JSON(status, ErrorResponse{Error: err.Error()})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, ErrorResponse{Error: ErrInternalServer.Error()})
 }
