@@ -16,7 +16,7 @@ type employeeRepository interface {
 	WithTx(ctx context.Context, fn func(tx *gorm.DB) error) error
 	List(ctx context.Context, page int, pageSize int) ([]*model.Employee, int64, error)
 	GetByID(ctx context.Context, ID int64) (*model.Employee, error)
-	Update(ctx context.Context, id int64, updates map[string]interface{}) error
+	Update(ctx context.Context, tx *gorm.DB, id int64, updates map[string]interface{}) error
 	Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, endDate time.Time, actorID int64) error
 }
 
@@ -24,6 +24,7 @@ type userRepository interface {
 	BulkCreate(ctx context.Context, tx *gorm.DB, users []*model.User) error
 	RoleIDsByCode(ctx context.Context, tx *gorm.DB) (map[string]int, error)
 	Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, actorID int64) error
+	UpdateEmail(ctx context.Context, tx *gorm.DB, employeeID int64, newEmail string, actorID int64) error
 }
 
 // EmployeeProvision pairs HR employee data with the application role assigned
@@ -138,6 +139,10 @@ func (s *EmployeeService) GetByID(ctx context.Context, ID int64) (*model.Employe
 	return employee, nil
 }
 func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto.UpdateEmployeeRequest, actorID int64) (*model.Employee, error) {
+	if actorID <= 0 {
+		return nil, dto.ErrUnauthorized
+	}
+
 	_, err := s.employeeRepo.GetByID(ctx, employeeID)
 	if err != nil {
 		if errors.Is(err, dto.ErrNotFound) {
@@ -169,8 +174,20 @@ func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto
 
 	updates["updated_by"] = actorID
 
-	err = s.employeeRepo.Update(ctx, employeeID, updates)
+	newEmail, emailChanged := updates["email"].(string)
+	err = s.employeeRepo.WithTx(ctx, func(tx *gorm.DB) error {
+		if err := s.employeeRepo.Update(ctx, tx, employeeID, updates); err != nil {
+			return err
+		}
+		if !emailChanged {
+			return nil
+		}
+		return s.userRepo.UpdateEmail(ctx, tx, employeeID, newEmail, actorID)
+	})
 	if err != nil {
+		if errors.Is(err, dto.ErrEmployeeEmailExists) {
+			return nil, dto.ErrEmployeeEmailExists
+		}
 		return nil, dto.ErrInternalServer
 	}
 	updatedEmployee, err := s.employeeRepo.GetByID(ctx, employeeID)

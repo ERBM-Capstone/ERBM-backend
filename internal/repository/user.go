@@ -77,10 +77,6 @@ func (r *UserRepository) Deactivate(ctx context.Context, tx *gorm.DB, employeeID
 	if result.Error != nil {
 		return result.Error
 	}
-	if result.RowsAffected == 0 {
-		return dto.ErrNotFound
-	}
-
 	return nil
 }
 
@@ -100,9 +96,5 @@ func (r *UserRepository) UpdateEmail(ctx context.Context, tx *gorm.DB, employeeI
 		}
 		return result.Error
 	}
-	if result.RowsAffected == 0 {
-		return dto.ErrNotFound
-	}
-
 	return nil
 }

@@ -88,14 +88,18 @@ func (r *EmployeeRepository) GetByID(ctx context.Context, ID int64) (*model.Empl
 
 func (r *EmployeeRepository) Update(
 	ctx context.Context,
+	tx *gorm.DB,
 	id int64,
 	updates map[string]interface{},
 ) error {
-
-	if err := r.db.WithContext(ctx).
+	if err := tx.WithContext(ctx).
 		Model(&model.Employee{}).
 		Where("id = ?", id).
 		Updates(updates).Error; err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return dto.ErrEmployeeEmailExists
+		}
 		return err
 	}
 
