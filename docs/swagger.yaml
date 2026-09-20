@@ -42,6 +42,13 @@ definitions:
     - position
     - role_code
     type: object
+  dto.DeactivateEmployeeRequest:
+    properties:
+      employment_end_date:
+        type: string
+    required:
+    - employment_end_date
+    type: object
   dto.LoginRequest:
     properties:
       email:
@@ -61,6 +68,23 @@ definitions:
         type: integer
       total:
         type: integer
+    type: object
+  dto.UpdateEmployeeRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      employment_end_date:
+        type: string
+      first_name:
+        maxLength: 255
+        type: string
+      last_name:
+        maxLength: 255
+        type: string
+      position:
+        maxLength: 255
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -230,6 +254,148 @@ paths:
       security:
       - BearerAuth: []
       summary: Create employee
+      tags:
+      - employees
+  /api/v1/employees/{id}:
+    get:
+      description: Returns a single employee by ID. Requires the ADMIN role.
+      parameters:
+      - description: Employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Get employee
+      tags:
+      - employees
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates an employee profile. Requires the ADMIN role.
+      parameters:
+      - description: Employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      - description: Employee update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Update employee
+      tags:
+      - employees
+  /api/v1/employees/{id}/deactivate:
+    patch:
+      consumes:
+      - application/json
+      description: Records an employee's employment end date and deactivates the associated
+        login account. Requires the ADMIN role.
+      parameters:
+      - description: Employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      - description: Employment end date
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DeactivateEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Deactivate employee
       tags:
       - employees
 securityDefinitions:

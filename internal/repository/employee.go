@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
@@ -71,4 +72,50 @@ func (r *EmployeeRepository) List(
 	}
 
 	return employees, total, nil
+}
+
+func (r *EmployeeRepository) GetByID(ctx context.Context, ID int64) (*model.Employee, error) {
+	var employee model.Employee
+	if err := r.db.WithContext(ctx).Where("id = ?", ID).Take(&employee).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, dto.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &employee, nil
+}
+
+func (r *EmployeeRepository) Update(
+	ctx context.Context,
+	id int64,
+	updates map[string]interface{},
+) error {
+
+	if err := r.db.WithContext(ctx).
+		Model(&model.Employee{}).
+		Where("id = ?", id).
+		Updates(updates).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *EmployeeRepository) Deactivate(
+	ctx context.Context,
+	tx *gorm.DB,
+	employeeID int64,
+	endDate time.Time,
+	actorID int64,
+) error {
+	result := tx.WithContext(ctx).
+		Model(&model.Employee{}).
+		Where("id = ?", employeeID).
+		Updates(map[string]any{
+			"updated_by":          actorID,
+			"employment_end_date": endDate,
+		})
+
+	return result.Error
 }

@@ -64,3 +64,45 @@ func (r *UserRepository) RoleIDsByCode(ctx context.Context, tx *gorm.DB) (map[st
 
 	return roleIDs, nil
 }
+
+func (r *UserRepository) Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, actorID int64) error {
+	result := tx.WithContext(ctx).
+		Model(&model.User{}).
+		Where("employee_id = ?", employeeID).
+		Updates(map[string]any{
+			"updated_by": actorID,
+			"status":     model.UserStatusDeactivated,
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return dto.ErrNotFound
+	}
+
+	return nil
+}
+
+func (r *UserRepository) UpdateEmail(ctx context.Context, tx *gorm.DB, employeeID int64, newEmail string, actorID int64) error {
+	result := tx.WithContext(ctx).
+		Model(&model.User{}).
+		Where("employee_id = ?", employeeID).
+		Updates(map[string]any{
+			"updated_by": actorID,
+			"email":      newEmail,
+		})
+
+	if result.Error != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(result.Error, &pgErr) && pgErr.Code == "23505" {
+			return dto.ErrEmployeeEmailExists
+		}
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return dto.ErrNotFound
+	}
+
+	return nil
+}

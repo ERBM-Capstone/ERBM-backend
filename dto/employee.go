@@ -19,6 +19,15 @@ type CreateEmployeeRequest struct {
 	RoleCode          string  `json:"role_code" binding:"required,max=50"`
 	EmploymentEndDate *string `json:"employment_end_date" binding:"omitempty,datetime=2006-01-02"`
 }
+type UpdateEmployeeRequest struct {
+	FirstName *string `json:"first_name" binding:"omitempty,max=255"`
+	LastName  *string `json:"last_name" binding:"omitempty,max=255"`
+	Position  *string `json:"position" binding:"omitempty,max=255"`
+	Email     *string `json:"email" binding:"omitempty,email,max=255"`
+}
+type DeactivateEmployeeRequest struct {
+	EmploymentEndDate string `json:"employment_end_date" binding:"required,datetime=2006-01-02"`
+}
 
 // ToEmployee converts a validated employee request into its persistence model.
 // Role and account data intentionally belong to User and are not set here.
