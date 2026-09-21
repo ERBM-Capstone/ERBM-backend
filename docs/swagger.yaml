@@ -1,5 +1,18 @@
 basePath: /
 definitions:
+  dto.BaseResponse:
+    properties:
+      data: {}
+      errors:
+        items: {}
+        type: array
+      message:
+        type: string
+      meta:
+        $ref: '#/definitions/dto.Meta'
+      success:
+        type: boolean
+    type: object
   dto.CreateEmployeeRequest:
     properties:
       date_hired:
@@ -29,33 +42,12 @@ definitions:
     - position
     - role_code
     type: object
-  dto.EmployeeResponse:
+  dto.DeactivateEmployeeRequest:
     properties:
-      created_at:
-        type: string
-      date_hired:
-        type: string
-      email:
-        type: string
       employment_end_date:
         type: string
-      first_name:
-        type: string
-      id:
-        type: integer
-      is_active:
-        type: boolean
-      last_name:
-        type: string
-      position:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  dto.ErrorResponse:
-    properties:
-      error:
-        type: string
+    required:
+    - employment_end_date
     type: object
   dto.LoginRequest:
     properties:
@@ -68,12 +60,29 @@ definitions:
     - email
     - password
     type: object
-  dto.LoginResponse:
+  dto.Meta:
     properties:
-      access_token:
-        type: string
-      expires_in:
+      page:
         type: integer
+      per_page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dto.UpdateEmployeeRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      first_name:
+        maxLength: 255
+        type: string
+      last_name:
+        maxLength: 255
+        type: string
+      position:
+        maxLength: 255
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -107,19 +116,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.LoginResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
       summary: Log in with email and password
       tags:
       - auth
@@ -142,19 +151,62 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.LoginResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
       summary: Refresh an access token
       tags:
       - auth
   /api/v1/employees:
+    get:
+      description: Returns employees in a paginated standard response envelope. Requires
+        the ADMIN role.
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: List employees
+      tags:
+      - employees
     post:
       consumes:
       - application/json
@@ -176,34 +228,225 @@ paths:
         "201":
           description: Created
           schema:
-            items:
-              $ref: '#/definitions/dto.EmployeeResponse'
-            type: array
+            $ref: '#/definitions/dto.BaseResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/dto.BaseResponse'
       security:
       - BearerAuth: []
       summary: Create employee
       tags:
       - employees
+  /api/v1/employees/{id}:
+    get:
+      description: Returns a single employee by ID. Requires the ADMIN role.
+      parameters:
+      - description: Employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Get employee
+      tags:
+      - employees
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates an employee profile. Requires the ADMIN role.
+      parameters:
+      - description: Employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      - description: Employee update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Update employee
+      tags:
+      - employees
+  /api/v1/employees/{id}/deactivate:
+    patch:
+      consumes:
+      - application/json
+      description: Records an employee's employment end date and deactivates the associated
+        login account. Requires the ADMIN role.
+      parameters:
+      - description: Employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      - description: Employment end date
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DeactivateEmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Deactivate employee
+      tags:
+      - employees
+  /api/v1/me:
+    get:
+      description: Returns the current account, role, and linked employee profile.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the authenticated user's profile
+      tags:
+      - auth
+  /api/v1/roles:
+    get:
+      description: Returns roles available for employee provisioning. Requires the
+        ADMIN role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: List application roles
+      tags:
+      - roles
 securityDefinitions:
   BearerAuth:
     in: header

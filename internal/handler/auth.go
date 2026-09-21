@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,6 +18,33 @@ const (
 type authService interface {
 	Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, string, error)
 	Refresh(ctx context.Context, refreshToken string) (*dto.LoginResponse, error)
+	Me(ctx context.Context, userID int64) (*dto.MeResponse, error)
+}
+
+// Me godoc
+// @Summary      Get the authenticated user's profile
+// @Description  Returns the current account, role, and linked employee profile.
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  dto.BaseResponse
+// @Failure      401  {object}  dto.BaseResponse
+// @Failure      500  {object}  dto.BaseResponse
+// @Router       /api/v1/me [get]
+func (h *AuthHandler) Me(c *gin.Context) {
+	value, exists := c.Get(middleware.ContextKeyUserID)
+	userID, ok := value.(int64)
+	if !exists || !ok || userID <= 0 {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+
+	response, err := h.service.Me(c.Request.Context(), userID)
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.OK(c, response)
 }
 
 // AuthHandler exposes manual authentication endpoints.
@@ -42,10 +70,10 @@ func NewAuthHandler(svc authService, refreshTokenTTL time.Duration, refreshCooki
 // @Accept       json
 // @Produce      json
 // @Param        body  body      dto.LoginRequest  true  "Login credentials"
-// @Success      200   {object}  dto.LoginResponse
-// @Failure      400   {object}  dto.ErrorResponse
-// @Failure      401   {object}  dto.ErrorResponse
-// @Failure      500   {object}  dto.ErrorResponse
+// @Success      200   {object}  dto.BaseResponse
+// @Failure      400   {object}  dto.BaseResponse
+// @Failure      401   {object}  dto.BaseResponse
+// @Failure      500   {object}  dto.BaseResponse
 // @Router       /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
@@ -61,7 +89,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	h.setRefreshCookie(c, refreshToken)
-	c.JSON(http.StatusOK, response)
+	dto.OK(c, response)
 }
 
 // Refresh godoc
@@ -69,9 +97,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Description  Validates the HttpOnly refresh cookie and returns a new access token.
 // @Tags         auth
 // @Produce      json
-// @Success      200            {object}  dto.LoginResponse
-// @Failure      401            {object}  dto.ErrorResponse
-// @Failure      500            {object}  dto.ErrorResponse
+// @Success      200            {object}  dto.BaseResponse
+// @Failure      401            {object}  dto.BaseResponse
+// @Failure      500            {object}  dto.BaseResponse
 // @Router       /api/v1/auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	refreshToken, err := c.Cookie(refreshCookieName)
@@ -86,7 +114,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	dto.OK(c, response)
 }
 
 // Logout godoc
@@ -97,7 +125,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // @Router       /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	h.clearRefreshCookie(c)
-	c.Status(http.StatusNoContent)
+	dto.NoContent(c)
 }
 
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, token string) {

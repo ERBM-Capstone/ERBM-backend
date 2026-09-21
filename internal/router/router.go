@@ -55,6 +55,16 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 
 	protected := v1.Group("")
 	protected.Use(middleware.RequireAuth(tokens))
+	protected.GET("/me", authHandler.Me)
+
+	rolesRepo := repository.NewRoleRepository(authDB)
+	rolesSvc := service.NewRoleService(rolesRepo)
+	rolesHandler := handler.NewRoleHandler(rolesSvc)
+	roles := protected.Group("/roles")
+	roles.Use(middleware.RequireRole("ADMIN"))
+	{
+		roles.GET("", rolesHandler.List)
+	}
 
 	// ── Employees ─────────────────────────────────────────────────────────────
 	employeesRepo := repository.NewEmployeeRepository(authDB)
@@ -64,7 +74,11 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	employees := protected.Group("/employees")
 	employees.Use(middleware.RequireRole("ADMIN"))
 	{
+		employees.GET("", employeesHandler.List)
+		employees.GET("/:id", employeesHandler.GetByID)
 		employees.POST("", employeesHandler.Create)
+		employees.PATCH("/:id", employeesHandler.Update)
+		employees.PATCH("/:id/deactivate", employeesHandler.Deactivate)
 	}
 
 	return r

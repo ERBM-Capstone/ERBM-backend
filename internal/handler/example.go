@@ -30,7 +30,7 @@ func (h *ExampleHandler) List(c *gin.Context) {
 	for i := range examples {
 		resp = append(resp, dto.ToExampleResponse(&examples[i]))
 	}
-	c.JSON(http.StatusOK, resp)
+	dto.OK(c, resp)
 }
 
 func (h *ExampleHandler) GetByID(c *gin.Context) {
@@ -45,7 +45,7 @@ func (h *ExampleHandler) GetByID(c *gin.Context) {
 		dto.HandleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.ToExampleResponse(example))
+	dto.OK(c, dto.ToExampleResponse(example))
 }
 
 func (h *ExampleHandler) Create(c *gin.Context) {
@@ -72,7 +72,7 @@ func (h *ExampleHandler) Create(c *gin.Context) {
 		dto.HandleError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, dto.ToExampleResponse(example))
+	dto.Created(c, dto.ToExampleResponse(example))
 }
 
 func (h *ExampleHandler) Update(c *gin.Context) {
@@ -105,7 +105,7 @@ func (h *ExampleHandler) Update(c *gin.Context) {
 		dto.HandleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.ToExampleResponse(example))
+	dto.OK(c, dto.ToExampleResponse(example))
 }
 
 func (h *ExampleHandler) Delete(c *gin.Context) {
@@ -131,5 +131,5 @@ func (h *ExampleHandler) Delete(c *gin.Context) {
 		dto.HandleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.DeleteResponse{Message: "example deleted successfully"})
+	dto.Success(c, http.StatusOK, nil, "example deleted successfully")
 }
