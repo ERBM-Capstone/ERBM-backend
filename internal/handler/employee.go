@@ -13,11 +13,11 @@ import (
 )
 
 type employeeService interface {
-	Create(ctx context.Context, actorID int64, req []service.EmployeeProvision) ([]*model.Employee, error)
+	Create(ctx context.Context, userID int64, req []service.EmployeeProvision) ([]*model.Employee, error)
 	List(ctx context.Context, page int, pageSize int) ([]*model.Employee, int64, error)
 	GetByID(ctx context.Context, ID int64) (*model.Employee, error)
-	Update(ctx context.Context, employeeID int64, req *dto.UpdateEmployeeRequest, actorID int64) (*model.Employee, error)
-	Deactivate(ctx context.Context, employeeID int64, actorID int64, endDate string) error
+	Update(ctx context.Context, employeeID int64, req *dto.UpdateEmployeeRequest, userID int64) (*model.Employee, error)
+	Deactivate(ctx context.Context, employeeID int64, userID int64, endDate string) error
 }
 
 // EmployeeHandler exposes HTTP endpoints for employees.
@@ -52,8 +52,8 @@ func (h *EmployeeHandler) Create(c *gin.Context) {
 		return
 	}
 	actorValue, exists := c.Get(middleware.ContextKeyUserID)
-	actorID, ok := actorValue.(int64)
-	if !exists || !ok || actorID <= 0 {
+	userID, ok := actorValue.(int64)
+	if !exists || !ok || userID <= 0 {
 		dto.HandleError(c, dto.ErrUnauthorized)
 		return
 	}
@@ -78,7 +78,7 @@ func (h *EmployeeHandler) Create(c *gin.Context) {
 		})
 	}
 
-	employees, err := h.service.Create(c.Request.Context(), actorID, provisions)
+	employees, err := h.service.Create(c.Request.Context(), userID, provisions)
 	if err != nil {
 		dto.HandleError(c, err)
 		return
@@ -192,7 +192,7 @@ func (h *EmployeeHandler) Update(c *gin.Context) {
 		return
 	}
 	actorValue, exists := c.Get(middleware.ContextKeyUserID)
-	actorID, ok := actorValue.(int64)
+	userID, ok := actorValue.(int64)
 	if !exists || !ok {
 		dto.HandleError(c, dto.ErrUnauthorized)
 		return
@@ -204,7 +204,7 @@ func (h *EmployeeHandler) Update(c *gin.Context) {
 		return
 	}
 
-	updatedEmployee, err := h.service.Update(c.Request.Context(), uri.ID, &req, actorID)
+	updatedEmployee, err := h.service.Update(c.Request.Context(), uri.ID, &req, userID)
 	if err != nil {
 		dto.HandleError(c, err)
 		return
@@ -242,13 +242,13 @@ func (h *EmployeeHandler) Deactivate(c *gin.Context) {
 	}
 
 	actorValue, exists := c.Get(middleware.ContextKeyUserID)
-	actorID, ok := actorValue.(int64)
+	userID, ok := actorValue.(int64)
 	if !exists || !ok {
 		dto.HandleError(c, dto.ErrUnauthorized)
 		return
 	}
 
-	err := h.service.Deactivate(c.Request.Context(), actorID, uri.ID, req.EmploymentEndDate)
+	err := h.service.Deactivate(c.Request.Context(), userID, uri.ID, req.EmploymentEndDate)
 	if err != nil {
 		dto.HandleError(c, err)
 		return

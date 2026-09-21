@@ -17,14 +17,14 @@ type employeeRepository interface {
 	List(ctx context.Context, page int, pageSize int) ([]*model.Employee, int64, error)
 	GetByID(ctx context.Context, ID int64) (*model.Employee, error)
 	Update(ctx context.Context, tx *gorm.DB, id int64, updates map[string]interface{}) error
-	Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, endDate time.Time, actorID int64) error
+	Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, endDate time.Time, userID int64) error
 }
 
 type userRepository interface {
 	BulkCreate(ctx context.Context, tx *gorm.DB, users []*model.User) error
 	RoleIDsByCode(ctx context.Context, tx *gorm.DB) (map[string]int, error)
-	Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, actorID int64) error
-	UpdateEmail(ctx context.Context, tx *gorm.DB, employeeID int64, newEmail string, actorID int64) error
+	Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, userID int64) error
+	UpdateEmail(ctx context.Context, tx *gorm.DB, employeeID int64, newEmail string, userID int64) error
 }
 
 // EmployeeProvision pairs HR employee data with the application role assigned
@@ -48,10 +48,10 @@ func NewEmployeeService(employeeRepo employeeRepository, userRepo userRepository
 // Create validates and normalizes employee data before persistence.
 func (s *EmployeeService) Create(
 	ctx context.Context,
-	actorID int64,
+	userID int64,
 	req []EmployeeProvision,
 ) ([]*model.Employee, error) {
-	if actorID <= 0 || len(req) == 0 {
+	if userID <= 0 || len(req) == 0 {
 		return nil, dto.ErrBadRequest
 	}
 
@@ -66,8 +66,8 @@ func (s *EmployeeService) Create(
 			return nil, dto.ErrBadRequest
 		}
 		roleCodes[i] = roleCode
-		provision.Employee.CreatedBy = &actorID
-		provision.Employee.UpdatedBy = &actorID
+		provision.Employee.CreatedBy = &userID
+		provision.Employee.UpdatedBy = &userID
 		employees[i] = provision.Employee
 	}
 
@@ -100,7 +100,7 @@ func (s *EmployeeService) Create(
 				continue
 			}
 
-			users = append(users, dto.ToUser(employee.ID, employee.Email, roleIDsByProvision[i], actorID))
+			users = append(users, dto.ToUser(employee.ID, employee.Email, roleIDsByProvision[i], userID))
 		}
 
 		if err := s.userRepo.BulkCreate(ctx, tx, users); err != nil {
@@ -138,8 +138,8 @@ func (s *EmployeeService) GetByID(ctx context.Context, ID int64) (*model.Employe
 	}
 	return employee, nil
 }
-func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto.UpdateEmployeeRequest, actorID int64) (*model.Employee, error) {
-	if actorID <= 0 {
+func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto.UpdateEmployeeRequest, userID int64) (*model.Employee, error) {
+	if userID <= 0 {
 		return nil, dto.ErrUnauthorized
 	}
 
@@ -172,7 +172,7 @@ func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto
 		return nil, dto.ErrBadRequest
 	}
 
-	updates["updated_by"] = actorID
+	updates["updated_by"] = userID
 
 	newEmail, emailChanged := updates["email"].(string)
 	err = s.employeeRepo.WithTx(ctx, func(tx *gorm.DB) error {
@@ -182,7 +182,7 @@ func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto
 		if !emailChanged {
 			return nil
 		}
-		return s.userRepo.UpdateEmail(ctx, tx, employeeID, newEmail, actorID)
+		return s.userRepo.UpdateEmail(ctx, tx, employeeID, newEmail, userID)
 	})
 	if err != nil {
 		if errors.Is(err, dto.ErrEmployeeEmailExists) {
@@ -206,17 +206,21 @@ func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto
 
 func (s *EmployeeService) Deactivate(
 	ctx context.Context,
-	actorID int64,
+	userID int64,
 	employeeID int64,
 	endDate string,
 ) error {
-	if actorID <= 0 {
+	if userID <= 0 {
 		return dto.ErrUnauthorized
 	}
 
 	employee, err := s.employeeRepo.GetByID(ctx, employeeID)
 	if err != nil {
 		return err
+	}
+
+	if employee.EmploymentEndDate != nil {
+		return dto.ErrEmployeeAlreadyDeactivated
 	}
 
 	endDateParsed, err := time.Parse("2006-01-02", endDate)
@@ -230,12 +234,12 @@ func (s *EmployeeService) Deactivate(
 
 	err = s.employeeRepo.WithTx(ctx, func(tx *gorm.DB) error {
 		if err := s.employeeRepo.Deactivate(
-			ctx, tx, employeeID, endDateParsed, actorID,
+			ctx, tx, employeeID, endDateParsed, userID,
 		); err != nil {
 			return err
 		}
 
-		return s.userRepo.Deactivate(ctx, tx, employeeID, actorID)
+		return s.userRepo.Deactivate(ctx, tx, employeeID, userID)
 	})
 	if err != nil {
 		return err

@@ -15,8 +15,28 @@ import (
 type authRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*model.User, string, error)
 	GetUserByID(ctx context.Context, userID int64) (*model.User, string, error)
+	GetProfileByUserID(ctx context.Context, userID int64) (*model.UserProfile, error)
 	RecordFailedLogin(ctx context.Context, userID int64, maxAttempts int, lockDuration time.Duration) error
 	UpdateLastLogin(ctx context.Context, userID int64) error
+}
+
+// Me loads the current user's account and employee profile from trusted JWT
+// identity. It does not accept a user ID from an HTTP request body or path.
+func (s *AuthService) Me(ctx context.Context, userID int64) (*dto.MeResponse, error) {
+	if userID <= 0 {
+		return nil, dto.ErrUnauthorized
+	}
+
+	profile, err := s.repo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, dto.ErrUnauthorized) {
+			return nil, dto.ErrUnauthorized
+		}
+		return nil, dto.ErrInternalServer
+	}
+
+	returnPtr := dto.ToMeResponse(profile)
+	return &returnPtr, nil
 }
 
 type LoginPolicy struct {

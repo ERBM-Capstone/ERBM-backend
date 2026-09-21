@@ -74,8 +74,6 @@ definitions:
       email:
         maxLength: 255
         type: string
-      employment_end_date:
-        type: string
       first_name:
         maxLength: 255
         type: string
@@ -398,6 +396,57 @@ paths:
       summary: Deactivate employee
       tags:
       - employees
+  /api/v1/me:
+    get:
+      description: Returns the current account, role, and linked employee profile.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the authenticated user's profile
+      tags:
+      - auth
+  /api/v1/roles:
+    get:
+      description: Returns roles available for employee provisioning. Requires the
+        ADMIN role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: List application roles
+      tags:
+      - roles
 securityDefinitions:
   BearerAuth:
     in: header

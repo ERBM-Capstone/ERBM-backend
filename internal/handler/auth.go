@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,6 +18,33 @@ const (
 type authService interface {
 	Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, string, error)
 	Refresh(ctx context.Context, refreshToken string) (*dto.LoginResponse, error)
+	Me(ctx context.Context, userID int64) (*dto.MeResponse, error)
+}
+
+// Me godoc
+// @Summary      Get the authenticated user's profile
+// @Description  Returns the current account, role, and linked employee profile.
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  dto.BaseResponse
+// @Failure      401  {object}  dto.BaseResponse
+// @Failure      500  {object}  dto.BaseResponse
+// @Router       /api/v1/me [get]
+func (h *AuthHandler) Me(c *gin.Context) {
+	value, exists := c.Get(middleware.ContextKeyUserID)
+	userID, ok := value.(int64)
+	if !exists || !ok || userID <= 0 {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+
+	response, err := h.service.Me(c.Request.Context(), userID)
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.OK(c, response)
 }
 
 // AuthHandler exposes manual authentication endpoints.

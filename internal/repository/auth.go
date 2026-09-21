@@ -74,6 +74,29 @@ func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (*model.
 	return &result.User, result.RoleCode, nil
 }
 
+// GetProfileByUserID returns the authenticated account and linked employee
+// profile. The role code is loaded from the database instead of trusting the
+// role claim embedded in an older access token.
+func (r *AuthRepository) GetProfileByUserID(ctx context.Context, userID int64) (*model.UserProfile, error) {
+	var profile model.UserProfile
+	err := r.db.WithContext(ctx).
+		Table("users AS u").
+		Select(`u.id AS user_id, u.employee_id, u.email, u.status, u.first_login,
+			r.code AS role_code, e.first_name, e.last_name, e.position`).
+		Joins("JOIN roles AS r ON r.id = u.role_id").
+		Joins("JOIN employees AS e ON e.id = u.employee_id").
+		Where("u.id = ?", userID).
+		Take(&profile).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, dto.ErrUnauthorized
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &profile, nil
+}
+
 // RecordFailedLogin atomically increments a user's failed-login counter. An
 // expired lock starts a new attempt window at one; reaching maxAttempts creates
 // a new lock for lockDuration.

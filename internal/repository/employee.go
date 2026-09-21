@@ -111,13 +111,13 @@ func (r *EmployeeRepository) Deactivate(
 	tx *gorm.DB,
 	employeeID int64,
 	endDate time.Time,
-	actorID int64,
+	userID int64,
 ) error {
 	result := tx.WithContext(ctx).
 		Model(&model.Employee{}).
 		Where("id = ?", employeeID).
 		Updates(map[string]any{
-			"updated_by":          actorID,
+			"updated_by":          userID,
 			"employment_end_date": endDate,
 		})
 

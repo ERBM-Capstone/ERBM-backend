@@ -28,3 +28,16 @@ type User struct {
 	UpdatedAt           time.Time
 	UpdatedBy           *int64
 }
+
+// UserProfile is the read model returned for the authenticated user.
+type UserProfile struct {
+	UserID     int64
+	EmployeeID int64
+	Email      string
+	Status     UserStatus
+	FirstLogin bool
+	RoleCode   string
+	FirstName  string
+	LastName   string
+	Position   string
+}

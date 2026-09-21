@@ -65,12 +65,12 @@ func (r *UserRepository) RoleIDsByCode(ctx context.Context, tx *gorm.DB) (map[st
 	return roleIDs, nil
 }
 
-func (r *UserRepository) Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, actorID int64) error {
+func (r *UserRepository) Deactivate(ctx context.Context, tx *gorm.DB, employeeID int64, userID int64) error {
 	result := tx.WithContext(ctx).
 		Model(&model.User{}).
 		Where("employee_id = ?", employeeID).
 		Updates(map[string]any{
-			"updated_by": actorID,
+			"updated_by": userID,
 			"status":     model.UserStatusDeactivated,
 		})
 
@@ -80,12 +80,12 @@ func (r *UserRepository) Deactivate(ctx context.Context, tx *gorm.DB, employeeID
 	return nil
 }
 
-func (r *UserRepository) UpdateEmail(ctx context.Context, tx *gorm.DB, employeeID int64, newEmail string, actorID int64) error {
+func (r *UserRepository) UpdateEmail(ctx context.Context, tx *gorm.DB, employeeID int64, newEmail string, userID int64) error {
 	result := tx.WithContext(ctx).
 		Model(&model.User{}).
 		Where("employee_id = ?", employeeID).
 		Updates(map[string]any{
-			"updated_by": actorID,
+			"updated_by": userID,
 			"email":      newEmail,
 		})
 

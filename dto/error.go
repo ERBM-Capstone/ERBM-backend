@@ -8,15 +8,16 @@ import (
 // ── Sentinel errors ──────────────────────────────────────────────────────────
 
 var (
-	ErrNotFound            = errors.New("not found")
-	ErrAlreadyDeleted      = errors.New("already deleted")
-	ErrUnauthorized        = errors.New("unauthorized")
-	ErrForbidden           = errors.New("forbidden")
-	ErrBadRequest          = errors.New("bad request")
-	ErrInvalidCredentials  = errors.New("invalid email or password")
-	ErrAccountLocked       = errors.New("account temporarily locked")
-	ErrInternalServer      = errors.New("internal server error")
-	ErrEmployeeEmailExists = errors.New("employee email already exists")
+	ErrNotFound                   = errors.New("not found")
+	ErrAlreadyDeleted             = errors.New("already deleted")
+	ErrUnauthorized               = errors.New("unauthorized")
+	ErrForbidden                  = errors.New("forbidden")
+	ErrBadRequest                 = errors.New("bad request")
+	ErrInvalidCredentials         = errors.New("invalid email or password")
+	ErrAccountLocked              = errors.New("account temporarily locked")
+	ErrInternalServer             = errors.New("internal server error")
+	ErrEmployeeEmailExists        = errors.New("employee email already exists")
+	ErrEmployeeAlreadyDeactivated = errors.New("employee already deactivated")
 
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
@@ -37,14 +38,15 @@ var (
 
 // ErrorStatusMap maps sentinel errors to HTTP status codes.
 var ErrorStatusMap = map[error]int{
-	ErrNotFound:            http.StatusNotFound,
-	ErrAlreadyDeleted:      http.StatusGone,
-	ErrUnauthorized:        http.StatusUnauthorized,
-	ErrForbidden:           http.StatusForbidden,
-	ErrBadRequest:          http.StatusBadRequest,
-	ErrInvalidCredentials:  http.StatusUnauthorized,
-	ErrAccountLocked:       http.StatusLocked,
-	ErrInternalServer:      http.StatusInternalServerError,
-	ErrEmployeeEmailExists: http.StatusConflict,
-	ErrExampleNotFound:     http.StatusNotFound,
+	ErrNotFound:                   http.StatusNotFound,
+	ErrAlreadyDeleted:             http.StatusGone,
+	ErrUnauthorized:               http.StatusUnauthorized,
+	ErrForbidden:                  http.StatusForbidden,
+	ErrBadRequest:                 http.StatusBadRequest,
+	ErrInvalidCredentials:         http.StatusUnauthorized,
+	ErrAccountLocked:              http.StatusLocked,
+	ErrInternalServer:             http.StatusInternalServerError,
+	ErrEmployeeEmailExists:        http.StatusConflict,
+	ErrExampleNotFound:            http.StatusNotFound,
+	ErrEmployeeAlreadyDeactivated: http.StatusConflict,
 }
