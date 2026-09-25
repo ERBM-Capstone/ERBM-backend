@@ -5,9 +5,10 @@
 
 # Go build and test artifacts
 /bin/
-*.test
+# *_test.go
 *.out
 coverage.*
+/tests/
 
 # Temporary files and logs
 /tmp/
