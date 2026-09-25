@@ -111,7 +111,7 @@ func (s *ProjectService) Create(
 	project := &model.Project{
 		ProjectCode: code,
 		Name:        name,
-		Description: trimOptional(req.Description),
+		Description: req.Description,
 		Budget:      budget,
 		StartDate:   startDate,
 		EndDate:     endDate,
@@ -247,7 +247,7 @@ func (s *ProjectService) Update(
 			updates["name"] = name
 		}
 		if req.Description != nil {
-			updates["description"] = trimOptional(req.Description)
+			updates["description"] = *req.Description
 		}
 		if req.Budget != nil {
 			budget, err := normalizeBudget(*req.Budget)
@@ -441,17 +441,6 @@ func parseProjectDate(value *string) (*time.Time, error) {
 		return nil, dto.ErrBadRequest
 	}
 	return &parsed, nil
-}
-
-func trimOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 func uniqueIDs(ids []int64) []int64 {
