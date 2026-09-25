@@ -81,5 +81,23 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 		employees.PATCH("/:id/deactivate", employeesHandler.Deactivate)
 	}
 
+	// ── Projects ──────────────────────────────────────────────────────────────
+	projectsRepo := repository.NewProjectRepository(authDB)
+	projectsSvc := service.NewProjectService(projectsRepo)
+	projectsHandler := handler.NewProjectHandler(projectsSvc)
+	projects := protected.Group("/projects")
+	projects.Use(middleware.RequireRole("ADMIN", "PM", "PC", "ACCOUNTING"))
+	{
+		projects.GET("", projectsHandler.List)
+		projects.GET("/:id", projectsHandler.GetByID)
+
+		projectsWrite := projects.Group("")
+		projectsWrite.Use(middleware.RequireRole("ADMIN", "PM", "PC"))
+		{
+			projectsWrite.POST("", projectsHandler.Create)
+			projectsWrite.PATCH("/:id", projectsHandler.Update)
+		}
+	}
+
 	return r
 }

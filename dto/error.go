@@ -19,6 +19,13 @@ var (
 	ErrEmployeeEmailExists        = errors.New("employee email already exists")
 	ErrEmployeeAlreadyDeactivated = errors.New("employee already deactivated")
 
+	// Project resource
+	ErrProjectNotFound           = errors.New("project not found")
+	ErrProjectCodeExists         = errors.New("project code already exists")
+	ErrProjectClosed             = errors.New("project is closed")
+	ErrInvalidProjectManager     = errors.New("pm must be an active user with the PM role")
+	ErrInvalidProjectCoordinator = errors.New("pc must be an active user with the PC role")
+
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
 )
@@ -49,4 +56,9 @@ var ErrorStatusMap = map[error]int{
 	ErrEmployeeEmailExists:        http.StatusConflict,
 	ErrExampleNotFound:            http.StatusNotFound,
 	ErrEmployeeAlreadyDeactivated: http.StatusConflict,
+	ErrProjectNotFound:            http.StatusNotFound,
+	ErrProjectCodeExists:          http.StatusConflict,
+	ErrProjectClosed:              http.StatusConflict,
+	ErrInvalidProjectManager:      http.StatusBadRequest,
+	ErrInvalidProjectCoordinator:  http.StatusBadRequest,
 }
