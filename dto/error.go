@@ -18,6 +18,9 @@ var (
 	ErrInternalServer             = errors.New("internal server error")
 	ErrEmployeeEmailExists        = errors.New("employee email already exists")
 	ErrEmployeeAlreadyDeactivated = errors.New("employee already deactivated")
+	ErrInvalidActivationToken     = errors.New("invalid or expired activation token")
+	ErrActivationUnavailable      = errors.New("account is not awaiting activation")
+	ErrActivationEmailDelivery    = errors.New("activation email could not be delivered")
 
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
@@ -49,4 +52,7 @@ var ErrorStatusMap = map[error]int{
 	ErrEmployeeEmailExists:        http.StatusConflict,
 	ErrExampleNotFound:            http.StatusNotFound,
 	ErrEmployeeAlreadyDeactivated: http.StatusConflict,
+	ErrInvalidActivationToken:     http.StatusBadRequest,
+	ErrActivationUnavailable:      http.StatusConflict,
+	ErrActivationEmailDelivery:    http.StatusBadGateway,
 }

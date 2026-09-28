@@ -69,6 +69,27 @@ definitions:
       total:
         type: integer
     type: object
+  dto.ResendActivationRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+    required:
+    - email
+    type: object
+  dto.SetInitialPasswordRequest:
+    properties:
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+      token:
+        minLength: 1
+        type: string
+    required:
+    - password
+    - token
+    type: object
   dto.UpdateEmployeeRequest:
     properties:
       email:
@@ -97,6 +118,62 @@ info:
   title: ERBM API
   version: "1.0"
 paths:
+  /api/v1/auth/activation/resend:
+    post:
+      consumes:
+      - application/json
+      description: Always returns the same result to avoid revealing whether an email
+        has an invited account.
+      parameters:
+      - description: Account email
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResendActivationRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      summary: Request a new activation link
+      tags:
+      - auth
+  /api/v1/auth/activation/set-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Activation token and initial password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetInitialPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      summary: Set an initial password from an activation link
+      tags:
+      - auth
   /api/v1/auth/login:
     post:
       consumes:
@@ -394,6 +471,51 @@ paths:
       security:
       - BearerAuth: []
       summary: Deactivate employee
+      tags:
+      - employees
+  /api/v1/employees/{id}/resend-activation:
+    post:
+      description: Replaces every outstanding activation link for an invited employee.
+        Requires the ADMIN role.
+      parameters:
+      - description: Employee ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Resend an employee activation link
       tags:
       - employees
   /api/v1/me:

@@ -5,6 +5,7 @@ import (
 
 	_ "github.com/ERBM-Capstone/ERBM-backend/docs"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/handler"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/mail"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
 	jwtmanager "github.com/ERBM-Capstone/ERBM-backend/internal/pkg/jwt"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/repository"
@@ -18,7 +19,7 @@ import (
 )
 
 // New builds and returns the root Gin engine with all routes registered.
-func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, loginPolicy service.LoginPolicy) *gin.Engine {
+func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, loginPolicy service.LoginPolicy, activationConfig service.ActivationConfig, mailSender mail.Sender) *gin.Engine {
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
@@ -45,12 +46,16 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	// ── Authentication ────────────────────────────────────────────────────────
 	authRepo := repository.NewAuthRepository(authDB)
 	authSvc := service.NewAuthService(authRepo, tokens, loginPolicy)
-	authHandler := handler.NewAuthHandler(authSvc, tokens.RefreshTokenTTL(), refreshCookieSecure)
+	activationRepo := repository.NewAccountActivationTokenRepository(authDB)
+	activationSvc := service.NewActivationService(activationRepo, mailSender, activationConfig)
+	authHandler := handler.NewAuthHandler(&authActivationService{AuthService: authSvc, ActivationService: activationSvc}, tokens.RefreshTokenTTL(), refreshCookieSecure)
 	auth := v1.Group("/auth")
 	{
 		auth.POST("/login", authHandler.Login)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/logout", authHandler.Logout)
+		auth.POST("/activation/set-password", authHandler.SetInitialPassword)
+		auth.POST("/activation/resend", authHandler.ResendActivation)
 	}
 
 	protected := v1.Group("")
@@ -69,7 +74,7 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	// ── Employees ─────────────────────────────────────────────────────────────
 	employeesRepo := repository.NewEmployeeRepository(authDB)
 	usersRepo := repository.NewUserRepository(authDB)
-	employeesSvc := service.NewEmployeeService(employeesRepo, usersRepo)
+	employeesSvc := service.NewEmployeeService(employeesRepo, usersRepo, activationSvc)
 	employeesHandler := handler.NewEmployeeHandler(employeesSvc)
 	employees := protected.Group("/employees")
 	employees.Use(middleware.RequireRole("ADMIN"))
@@ -79,7 +84,15 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 		employees.POST("", employeesHandler.Create)
 		employees.PATCH("/:id", employeesHandler.Update)
 		employees.PATCH("/:id/deactivate", employeesHandler.Deactivate)
+		employees.POST("/:id/resend-activation", employeesHandler.ResendActivation)
 	}
 
 	return r
+}
+
+// authActivationService keeps the existing auth service and the invitation
+// workflow behind the handler's intentionally narrow interface.
+type authActivationService struct {
+	*service.AuthService
+	*service.ActivationService
 }
