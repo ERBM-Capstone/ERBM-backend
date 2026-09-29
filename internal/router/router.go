@@ -12,18 +12,18 @@ import (
 	"github.com/ERBM-Capstone/ERBM-backend/internal/service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
 // New builds and returns the root Gin engine with all routes registered.
-func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, loginPolicy service.LoginPolicy, activationConfig service.ActivationConfig, mailSender mail.Sender) *gin.Engine {
+func New(db *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, loginPolicy service.LoginPolicy, activationConfig service.ActivationConfig, mailSender mail.Sender) *gin.Engine {
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
 			"http://localhost:3000",
+			"*",
 		},
 
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
@@ -44,9 +44,9 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	v1 := r.Group("/api/v1")
 
 	// ── Authentication ────────────────────────────────────────────────────────
-	authRepo := repository.NewAuthRepository(authDB)
+	authRepo := repository.NewAuthRepository(db)
 	authSvc := service.NewAuthService(authRepo, tokens, loginPolicy)
-	activationRepo := repository.NewAccountActivationTokenRepository(authDB)
+	activationRepo := repository.NewAccountActivationTokenRepository(db)
 	activationSvc := service.NewActivationService(activationRepo, mailSender, activationConfig)
 	authHandler := handler.NewAuthHandler(&authActivationService{AuthService: authSvc, ActivationService: activationSvc}, tokens.RefreshTokenTTL(), refreshCookieSecure)
 	auth := v1.Group("/auth")
@@ -62,7 +62,7 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	protected.Use(middleware.RequireAuth(tokens))
 	protected.GET("/me", authHandler.Me)
 
-	rolesRepo := repository.NewRoleRepository(authDB)
+	rolesRepo := repository.NewRoleRepository(db)
 	rolesSvc := service.NewRoleService(rolesRepo)
 	rolesHandler := handler.NewRoleHandler(rolesSvc)
 	roles := protected.Group("/roles")
@@ -72,8 +72,8 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	}
 
 	// ── Employees ─────────────────────────────────────────────────────────────
-	employeesRepo := repository.NewEmployeeRepository(authDB)
-	usersRepo := repository.NewUserRepository(authDB)
+	employeesRepo := repository.NewEmployeeRepository(db)
+	usersRepo := repository.NewUserRepository(db)
 	employeesSvc := service.NewEmployeeService(employeesRepo, usersRepo, activationSvc)
 	employeesHandler := handler.NewEmployeeHandler(employeesSvc)
 	employees := protected.Group("/employees")
@@ -88,7 +88,7 @@ func New(pool *pgxpool.Pool, authDB *gorm.DB, tokens *jwtmanager.Manager, refres
 	}
 
 	// ── Projects ──────────────────────────────────────────────────────────────
-	projectsRepo := repository.NewProjectRepository(authDB)
+	projectsRepo := repository.NewProjectRepository(db)
 	projectsSvc := service.NewProjectService(projectsRepo)
 	projectsHandler := handler.NewProjectHandler(projectsSvc)
 	projects := protected.Group("/projects")

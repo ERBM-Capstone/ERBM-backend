@@ -9,7 +9,6 @@ import (
 	jwtmanager "github.com/ERBM-Capstone/ERBM-backend/internal/pkg/jwt"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/router"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -44,21 +43,12 @@ func main() {
 	}
 
 	// Connect to PostgreSQL
-	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
-	if err != nil {
-		log.Fatalf("unable to connect to database: %v", err)
-	}
-	defer pool.Close()
 
-	if err := pool.Ping(context.Background()); err != nil {
-		log.Fatalf("database ping failed: %v", err)
-	}
-
-	authDB, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("unable to initialize GORM: %v", err)
 	}
-	sqlDB, err := authDB.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatalf("unable to access GORM database connection: %v", err)
 	}
@@ -70,7 +60,7 @@ func main() {
 
 	// Build and run the router
 	mailSender := mail.NewGmailSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPGmailAppPassword, cfg.SMTPFromAddress)
-	r := router.New(pool, authDB, tokens, cfg.RefreshCookieSecure, service.LoginPolicy{
+	r := router.New(db, tokens, cfg.RefreshCookieSecure, service.LoginPolicy{
 		MaxFailedAttempts: cfg.AuthMaxFailedLoginAttempts,
 		LockDuration:      cfg.AuthLoginLockDuration,
 	}, service.ActivationConfig{FrontendURL: cfg.FrontendActivationURL}, mailSender)
