@@ -21,6 +21,12 @@ type Config struct {
 	RefreshCookieSecure        bool
 	AuthLoginLockDuration      time.Duration
 	AuthMaxFailedLoginAttempts int
+	SMTPHost                   string
+	SMTPPort                   string
+	SMTPUsername               string
+	SMTPGmailAppPassword       string
+	SMTPFromAddress            string
+	FrontendActivationURL      string
 }
 
 // Load reads .env (if present) and returns a populated Config.
@@ -40,6 +46,12 @@ func Load() *Config {
 		RefreshCookieSecure:        getBoolEnv("REFRESH_COOKIE_SECURE", false),
 		AuthLoginLockDuration:      getDurationEnv("AUTH_LOGIN_LOCK_DURATION", 3*time.Minute),
 		AuthMaxFailedLoginAttempts: getIntEnv("AUTH_MAX_FAILED_LOGIN_ATTEMPTS", 10),
+		SMTPHost:                   getEnv("SMTP_HOST", ""),
+		SMTPPort:                   getEnv("SMTP_PORT", ""),
+		SMTPUsername:               getEnv("SMTP_USERNAME", ""),
+		SMTPGmailAppPassword:       getEnv("SMTP_GMAIL_APP_PASSWORD", ""),
+		SMTPFromAddress:            getEnv("SMTP_FROM_ADDRESS", ""),
+		FrontendActivationURL:      getEnv("FRONTEND_ACTIVATION_URL", ""),
 	}
 }
 

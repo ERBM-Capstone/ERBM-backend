@@ -27,6 +27,12 @@ type userRepository interface {
 	UpdateEmail(ctx context.Context, tx *gorm.DB, employeeID int64, newEmail string, userID int64) error
 }
 
+type activationIssuer interface {
+	IssueForUsersInTx(ctx context.Context, tx *gorm.DB, users []*model.User) ([]PendingActivation, error)
+	SendPending(ctx context.Context, pending []PendingActivation) error
+	ResendForEmployee(ctx context.Context, employeeID int64) error
+}
+
 // EmployeeProvision pairs HR employee data with the application role assigned
 // to that employee's invited account. Position is not used for authorization.
 type EmployeeProvision struct {
@@ -38,11 +44,12 @@ type EmployeeProvision struct {
 type EmployeeService struct {
 	employeeRepo employeeRepository
 	userRepo     userRepository
+	activation   activationIssuer
 }
 
 // NewEmployeeService creates an EmployeeService backed by repo.
-func NewEmployeeService(employeeRepo employeeRepository, userRepo userRepository) *EmployeeService {
-	return &EmployeeService{employeeRepo: employeeRepo, userRepo: userRepo}
+func NewEmployeeService(employeeRepo employeeRepository, userRepo userRepository, activation activationIssuer) *EmployeeService {
+	return &EmployeeService{employeeRepo: employeeRepo, userRepo: userRepo, activation: activation}
 }
 
 // Create validates and normalizes employee data before persistence.
@@ -71,6 +78,7 @@ func (s *EmployeeService) Create(
 		employees[i] = provision.Employee
 	}
 
+	var pendingActivations []PendingActivation
 	err := s.employeeRepo.WithTx(ctx, func(tx *gorm.DB) error {
 		roleIDs, err := s.userRepo.RoleIDsByCode(ctx, tx)
 		if err != nil {
@@ -109,6 +117,13 @@ func (s *EmployeeService) Create(
 			}
 			return dto.ErrInternalServer
 		}
+		if s.activation == nil {
+			return dto.ErrInternalServer
+		}
+		pendingActivations, err = s.activation.IssueForUsersInTx(ctx, tx, users)
+		if err != nil {
+			return dto.ErrInternalServer
+		}
 
 		return nil
 	})
@@ -116,6 +131,10 @@ func (s *EmployeeService) Create(
 	if err != nil {
 		return nil, err
 	}
+	// Email delivery is external to the transaction. Accounts and invitation
+	// tokens remain valid even if SMTP is temporarily unavailable; users can
+	// request another activation link later.
+	_ = s.activation.SendPending(ctx, pendingActivations)
 
 	return employees, nil
 }
@@ -137,6 +156,14 @@ func (s *EmployeeService) GetByID(ctx context.Context, ID int64) (*model.Employe
 		return nil, dto.ErrInternalServer
 	}
 	return employee, nil
+}
+
+// ResendForEmployee replaces the activation link for an invited employee.
+func (s *EmployeeService) ResendForEmployee(ctx context.Context, employeeID int64) error {
+	if employeeID <= 0 || s.activation == nil {
+		return dto.ErrBadRequest
+	}
+	return s.activation.ResendForEmployee(ctx, employeeID)
 }
 func (s *EmployeeService) Update(ctx context.Context, employeeID int64, req *dto.UpdateEmployeeRequest, userID int64) (*model.Employee, error) {
 	if userID <= 0 {

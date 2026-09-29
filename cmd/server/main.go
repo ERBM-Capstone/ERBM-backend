@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/ERBM-Capstone/ERBM-backend/config"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/mail"
 	jwtmanager "github.com/ERBM-Capstone/ERBM-backend/internal/pkg/jwt"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/router"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/service"
@@ -68,10 +69,11 @@ func main() {
 	log.Println("connected to database")
 
 	// Build and run the router
+	mailSender := mail.NewGmailSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPGmailAppPassword, cfg.SMTPFromAddress)
 	r := router.New(pool, authDB, tokens, cfg.RefreshCookieSecure, service.LoginPolicy{
 		MaxFailedAttempts: cfg.AuthMaxFailedLoginAttempts,
 		LockDuration:      cfg.AuthLoginLockDuration,
-	})
+	}, service.ActivationConfig{FrontendURL: cfg.FrontendActivationURL}, mailSender)
 	log.Printf("server starting on :%s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("server error: %v", err)

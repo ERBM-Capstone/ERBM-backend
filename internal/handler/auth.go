@@ -19,6 +19,8 @@ type authService interface {
 	Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, string, error)
 	Refresh(ctx context.Context, refreshToken string) (*dto.LoginResponse, error)
 	Me(ctx context.Context, userID int64) (*dto.MeResponse, error)
+	SetInitialPassword(ctx context.Context, req *dto.SetInitialPasswordRequest) error
+	ResendForEmail(ctx context.Context, email string) error
 }
 
 // Me godoc
@@ -90,6 +92,52 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	h.setRefreshCookie(c, refreshToken)
 	dto.OK(c, response)
+}
+
+// SetInitialPassword godoc
+// @Summary      Set an initial password from an activation link
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body  dto.SetInitialPasswordRequest  true  "Activation token and initial password"
+// @Success      200   {object}  dto.BaseResponse
+// @Failure      400   {object}  dto.BaseResponse
+// @Failure      500   {object}  dto.BaseResponse
+// @Router       /api/v1/auth/activation/set-password [post]
+func (h *AuthHandler) SetInitialPassword(c *gin.Context) {
+	var req dto.SetInitialPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	if err := h.service.SetInitialPassword(c.Request.Context(), &req); err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.OK(c, gin.H{"message": "Account activated successfully"})
+}
+
+// ResendActivation godoc
+// @Summary      Request a new activation link
+// @Description  Always returns the same result to avoid revealing whether an email has an invited account.
+// @Tags         auth
+// @Accept       json
+// @Param        body  body  dto.ResendActivationRequest  true  "Account email"
+// @Success      204
+// @Failure      400   {object}  dto.BaseResponse
+// @Failure      500   {object}  dto.BaseResponse
+// @Router       /api/v1/auth/activation/resend [post]
+func (h *AuthHandler) ResendActivation(c *gin.Context) {
+	var req dto.ResendActivationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	if err := h.service.ResendForEmail(c.Request.Context(), req.Email); err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.NoContent(c)
 }
 
 // Refresh godoc

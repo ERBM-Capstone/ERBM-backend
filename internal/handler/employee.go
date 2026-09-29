@@ -18,6 +18,7 @@ type employeeService interface {
 	GetByID(ctx context.Context, ID int64) (*model.Employee, error)
 	Update(ctx context.Context, employeeID int64, req *dto.UpdateEmployeeRequest, userID int64) (*model.Employee, error)
 	Deactivate(ctx context.Context, employeeID int64, userID int64, endDate string) error
+	ResendForEmployee(ctx context.Context, employeeID int64) error
 }
 
 // EmployeeHandler exposes HTTP endpoints for employees.
@@ -255,4 +256,32 @@ func (h *EmployeeHandler) Deactivate(c *gin.Context) {
 	}
 
 	dto.OK(c, gin.H{"message": "Employee deactivated successfully"})
+}
+
+// ResendActivation godoc
+// @Summary      Resend an employee activation link
+// @Description  Replaces every outstanding activation link for an invited employee. Requires the ADMIN role.
+// @Tags         employees
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id  path  int  true  "Employee ID"  minimum(1)
+// @Success      204
+// @Failure      400  {object}  dto.BaseResponse
+// @Failure      401  {object}  dto.BaseResponse
+// @Failure      403  {object}  dto.BaseResponse
+// @Failure      404  {object}  dto.BaseResponse
+// @Failure      409  {object}  dto.BaseResponse
+// @Failure      502  {object}  dto.BaseResponse
+// @Router       /api/v1/employees/{id}/resend-activation [post]
+func (h *EmployeeHandler) ResendActivation(c *gin.Context) {
+	var uri dto.URIParam
+	if err := c.ShouldBindUri(&uri); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	if err := h.service.ResendForEmployee(c.Request.Context(), uri.ID); err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.NoContent(c)
 }

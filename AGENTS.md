@@ -41,6 +41,8 @@ Architecture:
 - `internal/middleware/` -- authentication and authorization
 - `internal/router/` -- routes and dependency wiring
 - `migrations/` -- PostgreSQL migrations
+- `tests/` -- project-level test folder at the repository root; create it
+  when it does not exist and place new test files here.
 
 ## Backend practices
 
@@ -59,7 +61,8 @@ Architecture:
   authentication.
 - Use exact decimal values for authoritative monetary calculations.
 - Keep Swagger routes synchronized with router registration.
-- Add or update tests whenever behavior changes.
+- Add or update tests whenever behavior changes. Create test files in the
+  root-level `tests/` folder (create the folder first when needed).
 
 ## ERBM guardrails
 
