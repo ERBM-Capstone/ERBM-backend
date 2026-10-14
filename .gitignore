@@ -10,6 +10,7 @@
 coverage.*
 /tests/*
 !/tests/activation_service_test.go
+!/tests/advance_workflow_migration_test.go
 
 # Temporary files and logs
 /tmp/
