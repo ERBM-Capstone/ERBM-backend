@@ -90,16 +90,13 @@ type ProjectResponse struct {
 	Status      model.ProjectStatus    `json:"status"`
 	PM          *ProjectMemberResponse `json:"pm"`
 	PC          *ProjectMemberResponse `json:"pc" extensions:"x-nullable"`
-	ClosedAt    *string                `json:"closed_at,omitempty"`
-	CreatedAt   string                 `json:"created_at"`
-	UpdatedAt   string                 `json:"updated_at"`
 }
 
 // ToProjectResponse converts a project detail to its API response shape.
 func ToProjectResponse(detail *model.ProjectDetail) ProjectResponse {
 	project := detail.Project
 
-	var startDate, endDate, closedAt *string
+	var startDate, endDate *string
 	if project.StartDate != nil {
 		formatted := project.StartDate.Format(projectDateFormat)
 		startDate = &formatted
@@ -107,10 +104,6 @@ func ToProjectResponse(detail *model.ProjectDetail) ProjectResponse {
 	if project.EndDate != nil {
 		formatted := project.EndDate.Format(projectDateFormat)
 		endDate = &formatted
-	}
-	if project.ClosedAt != nil {
-		formatted := project.ClosedAt.Format("2006-01-02T15:04:05Z07:00")
-		closedAt = &formatted
 	}
 
 	var pm *ProjectMemberResponse
@@ -136,9 +129,6 @@ func ToProjectResponse(detail *model.ProjectDetail) ProjectResponse {
 		Status:      project.Status,
 		PM:          pm,
 		PC:          pc,
-		ClosedAt:    closedAt,
-		CreatedAt:   project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:   project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
 

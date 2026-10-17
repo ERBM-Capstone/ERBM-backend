@@ -267,6 +267,7 @@ func (s *ProjectService) Update(
 		if req.Status != nil {
 			// Advance creation takes this same Project lock, so no new DRAFT
 			// can slip between this check and committing the CLOSED status.
+
 			unclosed, err := s.repo.HasUnclosedAdvances(ctx, tx, project.ID)
 			if err != nil {
 				return err
