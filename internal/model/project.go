@@ -21,7 +21,8 @@ type Project struct {
 	StartDate   *time.Time
 	EndDate     *time.Time
 	Status      ProjectStatus
-	PMUserID    int64 `gorm:"column:pm_user_id"`
+	PMUserID    int64  `gorm:"column:pm_user_id"`
+	PCUserID    *int64 `gorm:"column:pc_user_id"`
 	ClosedAt    *time.Time
 	ClosedBy    *int64
 	CreatedAt   time.Time
@@ -30,28 +31,20 @@ type Project struct {
 	UpdatedBy   *int64
 }
 
-// ProjectCoordinator links a PC user to a project.
-type ProjectCoordinator struct {
-	ProjectID int64
-	UserID    int64
-	CreatedBy *int64
-	CreatedAt time.Time
-}
-
-// ProjectMember is the read model of a PM or PC shown with a project.
-type ProjectMember struct {
-	ProjectID int64
+// ProjectUserSummary is the user profile displayed as a Project's PM or PC.
+// The owning Project supplies the assignment; this profile is keyed by UserID.
+type ProjectUserSummary struct {
 	UserID    int64
 	FirstName string
 	LastName  string
 	Email     string
 }
 
-// ProjectDetail is a project together with its PM and PCs.
+// ProjectDetail is a project together with its PM and optional PC.
 type ProjectDetail struct {
 	Project *Project
-	PM      *ProjectMember
-	PCs     []ProjectMember
+	PM      *ProjectUserSummary
+	PC      *ProjectUserSummary
 }
 
 // AssignableUser is the account data needed to check a PM/PC assignment.
@@ -62,7 +55,7 @@ type AssignableUser struct {
 }
 
 // ProjectFilter holds list filters. MemberUserID limits the result to
-// projects where that user is the PM or one of the PCs.
+// projects where that user is the PM or assigned PC.
 type ProjectFilter struct {
 	MemberUserID *int64
 	Query        string

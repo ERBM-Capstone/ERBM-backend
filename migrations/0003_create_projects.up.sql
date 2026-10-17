@@ -10,6 +10,7 @@ CREATE TABLE projects (
 
     status          VARCHAR(20)   NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'CLOSED')),
     pm_user_id      BIGINT        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    pc_user_id      BIGINT        REFERENCES users(id) ON DELETE RESTRICT,
 
     closed_at       TIMESTAMPTZ,
     closed_by       BIGINT        REFERENCES users(id) ON DELETE SET NULL,
@@ -24,18 +25,11 @@ CREATE TABLE projects (
 
 CREATE UNIQUE INDEX uq_projects_project_code ON projects (UPPER(project_code));
 CREATE INDEX idx_projects_pm_user_id ON projects (pm_user_id);
+CREATE INDEX idx_projects_pc_user_id ON projects (pc_user_id);
 CREATE INDEX idx_projects_status ON projects (status);
 
 COMMENT ON COLUMN projects.budget IS 'reference only, funds may exceed it';
 COMMENT ON COLUMN projects.status IS 'ACTIVE, CLOSED (closing is permanent)';
 
--- Create project_coordinators table (a project can have many PCs)
-CREATE TABLE project_coordinators (
-    project_id  BIGINT      NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    user_id     BIGINT      NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    created_by  BIGINT      REFERENCES users(id) ON DELETE SET NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (project_id, user_id)
-);
-
-CREATE INDEX idx_project_coordinators_user_id ON project_coordinators (user_id);
+COMMENT ON COLUMN projects.pc_user_id IS
+    'Optional assigned PC; a PC may coordinate multiple projects';

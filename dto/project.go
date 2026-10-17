@@ -1,6 +1,11 @@
 package dto
 
-import "github.com/ERBM-Capstone/ERBM-backend/internal/model"
+import (
+	"encoding/json"
+	"strings"
+
+	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
+)
 
 const projectDateFormat = "2006-01-02"
 
@@ -14,20 +19,49 @@ type CreateProjectRequest struct {
 	StartDate   *string `json:"start_date" binding:"omitempty,datetime=2006-01-02"`
 	EndDate     *string `json:"end_date" binding:"omitempty,datetime=2006-01-02"`
 	PMUserID    *int64  `json:"pm_user_id" binding:"omitempty,min=1"`
-	PCUserIDs   []int64 `json:"pc_user_ids" binding:"omitempty,dive,min=1"`
+	PCUserID    *int64  `json:"pc_user_id" binding:"omitempty,min=1" extensions:"x-nullable"`
 }
 
 // UpdateProjectRequest is the JSON body for PATCH /api/v1/projects/{id}.
-// Omitted fields are left unchanged. Send status "CLOSED" to close the project.
+// Omitted fields are left unchanged. An explicit null pc_user_id removes its PC.
+// Send status "CLOSED" to close the project.
 type UpdateProjectRequest struct {
-	Name        *string  `json:"name" binding:"omitempty,max=255"`
-	Description *string  `json:"description"`
-	Budget      *string  `json:"budget"`
-	StartDate   *string  `json:"start_date" binding:"omitempty,datetime=2006-01-02"`
-	EndDate     *string  `json:"end_date" binding:"omitempty,datetime=2006-01-02"`
-	PMUserID    *int64   `json:"pm_user_id" binding:"omitempty,min=1"`
-	PCUserIDs   *[]int64 `json:"pc_user_ids" binding:"omitempty,dive,min=1"`
-	Status      *string  `json:"status" binding:"omitempty,oneof=CLOSED"`
+	Name        *string `json:"name" binding:"omitempty,max=255"`
+	Description *string `json:"description"`
+	Budget      *string `json:"budget"`
+	StartDate   *string `json:"start_date" binding:"omitempty,datetime=2006-01-02"`
+	EndDate     *string `json:"end_date" binding:"omitempty,datetime=2006-01-02"`
+	PMUserID    *int64  `json:"pm_user_id" binding:"omitempty,min=1"`
+	PCUserID    *int64  `json:"pc_user_id" binding:"omitempty,min=1" extensions:"x-nullable"`
+	Status      *string `json:"status" binding:"omitempty,oneof=CLOSED"`
+	pcUserIDSet bool
+}
+
+// UnmarshalJSON preserves the distinction between an omitted PC and explicit null.
+func (r *UpdateProjectRequest) UnmarshalJSON(data []byte) error {
+	type request UpdateProjectRequest
+	var decoded request
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*r = UpdateProjectRequest(decoded)
+	// Match the same case-insensitive field names accepted by json.Unmarshal.
+	for key := range fields {
+		if strings.EqualFold(key, "pc_user_id") {
+			r.pcUserIDSet = true
+			break
+		}
+	}
+	return nil
+}
+
+// HasPCUserID reports whether this PATCH assigns or explicitly removes the PC.
+func (r *UpdateProjectRequest) HasPCUserID() bool {
+	return r.pcUserIDSet || r.PCUserID != nil
 }
 
 // ProjectListQuery contains pagination and filters for GET /api/v1/projects.
@@ -47,19 +81,19 @@ type ProjectMemberResponse struct {
 
 // ProjectResponse is the public-facing shape returned by the project API.
 type ProjectResponse struct {
-	ID          int64                   `json:"id"`
-	ProjectCode string                  `json:"project_code"`
-	Name        string                  `json:"name"`
-	Description *string                 `json:"description"`
-	Budget      string                  `json:"budget"`
-	StartDate   *string                 `json:"start_date"`
-	EndDate     *string                 `json:"end_date"`
-	Status      model.ProjectStatus     `json:"status"`
-	PM          *ProjectMemberResponse  `json:"pm"`
-	PCs         []ProjectMemberResponse `json:"pcs"`
-	ClosedAt    *string                 `json:"closed_at,omitempty"`
-	CreatedAt   string                  `json:"created_at"`
-	UpdatedAt   string                  `json:"updated_at"`
+	ID          int64                  `json:"id"`
+	ProjectCode string                 `json:"project_code"`
+	Name        string                 `json:"name"`
+	Description *string                `json:"description"`
+	Budget      string                 `json:"budget"`
+	StartDate   *string                `json:"start_date"`
+	EndDate     *string                `json:"end_date"`
+	Status      model.ProjectStatus    `json:"status"`
+	PM          *ProjectMemberResponse `json:"pm"`
+	PC          *ProjectMemberResponse `json:"pc" extensions:"x-nullable"`
+	ClosedAt    *string                `json:"closed_at,omitempty"`
+	CreatedAt   string                 `json:"created_at"`
+	UpdatedAt   string                 `json:"updated_at"`
 }
 
 // ToProjectResponse converts a project detail to its API response shape.
@@ -86,9 +120,10 @@ func ToProjectResponse(detail *model.ProjectDetail) ProjectResponse {
 		pm = &member
 	}
 
-	pcs := make([]ProjectMemberResponse, 0, len(detail.PCs))
-	for _, pc := range detail.PCs {
-		pcs = append(pcs, toProjectMemberResponse(pc))
+	var pc *ProjectMemberResponse
+	if detail.PC != nil {
+		member := toProjectMemberResponse(*detail.PC)
+		pc = &member
 	}
 
 	return ProjectResponse{
@@ -101,14 +136,14 @@ func ToProjectResponse(detail *model.ProjectDetail) ProjectResponse {
 		EndDate:     endDate,
 		Status:      project.Status,
 		PM:          pm,
-		PCs:         pcs,
+		PC:          pc,
 		ClosedAt:    closedAt,
 		CreatedAt:   project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:   project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
 
-func toProjectMemberResponse(member model.ProjectMember) ProjectMemberResponse {
+func toProjectMemberResponse(member model.ProjectUserSummary) ProjectMemberResponse {
 	return ProjectMemberResponse{
 		UserID:    member.UserID,
 		FirstName: member.FirstName,

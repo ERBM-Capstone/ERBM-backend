@@ -114,9 +114,11 @@ decisions mapped to versions and the next work that can safely start.
 
 ## Grouping example from existing ERBM migrations
 
-`0003_create_projects` groups `projects`, `project_coordinators`, their
-FKs, constraints, and indexes. They support one project-management
-capability, so assigning each table or index its own version would add
+`0003_create_projects` groups `projects`, its required `pm_user_id` and
+nullable `pc_user_id` foreign keys to `users`, constraints, and indexes.
+Each Project has one PM and at most one PC; each PM/PC can serve many
+Projects. These objects support one project-management capability, so
+assigning each column or index its own version would add
 coordination without a meaningful release boundary. An owner can write
 the pair while another developer reviews membership semantics and
 prepares acceptance cases.

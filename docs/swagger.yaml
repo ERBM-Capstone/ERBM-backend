@@ -1,5 +1,50 @@
 basePath: /
 definitions:
+  dto.AdvanceListItemResponse:
+    properties:
+      advance_code:
+        example: ADV-PRJ001-001
+        type: string
+      amount:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      id:
+        type: integer
+      project:
+        $ref: '#/definitions/dto.AdvanceProjectResponse'
+      purpose:
+        type: string
+      requester:
+        $ref: '#/definitions/dto.AdvanceRequesterResponse'
+      status:
+        $ref: '#/definitions/model.AdvanceStatus'
+      submitted_at:
+        type: string
+        x-nullable: true
+      updated_at:
+        type: string
+    type: object
+  dto.AdvanceProjectResponse:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      project_code:
+        type: string
+    type: object
+  dto.AdvanceRequesterResponse:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+      user_id:
+        type: integer
+    type: object
   dto.BaseResponse:
     properties:
       data: {}
@@ -12,6 +57,21 @@ definitions:
         $ref: '#/definitions/dto.Meta'
       success:
         type: boolean
+    type: object
+  dto.CreateAdvanceRequest:
+    properties:
+      amount:
+        example: "15000.00"
+        type: string
+      project_id:
+        minimum: 1
+        type: integer
+      purpose:
+        type: string
+    required:
+    - amount
+    - project_id
+    - purpose
     type: object
   dto.CreateEmployeeRequest:
     properties:
@@ -53,10 +113,10 @@ definitions:
       name:
         maxLength: 255
         type: string
-      pc_user_ids:
-        items:
-          type: integer
-        type: array
+      pc_user_id:
+        minimum: 1
+        type: integer
+        x-nullable: true
       pm_user_id:
         minimum: 1
         type: integer
@@ -96,6 +156,48 @@ definitions:
         type: integer
       total:
         type: integer
+    type: object
+  dto.ProjectMemberResponse:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  dto.ProjectResponse:
+    properties:
+      budget:
+        type: string
+      closed_at:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      end_date:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      pc:
+        allOf:
+        - $ref: '#/definitions/dto.ProjectMemberResponse'
+        x-nullable: true
+      pm:
+        $ref: '#/definitions/dto.ProjectMemberResponse'
+      project_code:
+        type: string
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/model.ProjectStatus'
+      updated_at:
+        type: string
     type: object
   dto.ResendActivationRequest:
     properties:
@@ -144,10 +246,10 @@ definitions:
       name:
         maxLength: 255
         type: string
-      pc_user_ids:
-        items:
-          type: integer
-        type: array
+      pc_user_id:
+        minimum: 1
+        type: integer
+        x-nullable: true
       pm_user_id:
         minimum: 1
         type: integer
@@ -158,6 +260,30 @@ definitions:
         - CLOSED
         type: string
     type: object
+  model.AdvanceStatus:
+    enum:
+    - DRAFT
+    - PENDING_PM_APPROVAL
+    - RETURNED_FOR_REVISION
+    - APPROVED
+    - ACTIVE
+    - CLOSED
+    type: string
+    x-enum-varnames:
+    - AdvanceStatusDraft
+    - AdvanceStatusPendingPMApproval
+    - AdvanceStatusReturnedForRevision
+    - AdvanceStatusApproved
+    - AdvanceStatusActive
+    - AdvanceStatusClosed
+  model.ProjectStatus:
+    enum:
+    - ACTIVE
+    - CLOSED
+    type: string
+    x-enum-varnames:
+    - ProjectStatusActive
+    - ProjectStatusClosed
 host: localhost:8080
 info:
   contact:
@@ -171,6 +297,142 @@ info:
   title: ERBM API
   version: "1.0"
 paths:
+  /api/v1/advances:
+    get:
+      description: Lists visible Advances in THB. ADMIN and ACCOUNTING can read every
+        Project; PM sees managed Projects and PC sees assigned Projects. DRAFT is
+        visible only to its creator for every role. Visibility applies before pagination
+        and total count. Sorted by created_at DESC, id DESC.
+      parameters:
+      - description: Filter by accessible Project ID
+        in: query
+        minimum: 1
+        name: project_id
+        type: integer
+      - description: Advance status
+        enum:
+        - DRAFT
+        - PENDING_PM_APPROVAL
+        - RETURNED_FOR_REVISION
+        - APPROVED
+        - ACTIVE
+        - CLOSED
+        in: query
+        name: status
+        type: string
+      - description: Case-insensitive search in purpose
+        in: query
+        maxLength: 255
+        name: q
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.AdvanceListItemResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: List advances
+      tags:
+      - advances
+    post:
+      consumes:
+      - application/json
+      description: PC assigned to an ACTIVE Project creates a DRAFT with a required
+        positive THB amount. Codes use ADV-{project_code}-{per-project sequence},
+        assigned once at creation. An existing ACTIVE Advance does not block DRAFT
+        creation. Creation, code allocation and audit event commit together. Requester
+        is the authenticated creator.
+      parameters:
+      - description: Create Advance draft
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAdvanceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AdvanceListItemResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Create an advance draft
+      tags:
+      - advances
   /api/v1/auth/activation/resend:
     post:
       consumes:
@@ -628,7 +890,14 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.BaseResponse'
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ProjectResponse'
+                  type: array
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -653,9 +922,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a project. ADMIN and PC must send pm_user_id. A PM who
-        creates a project becomes its PM, and a PC who creates a project is added
-        to its PCs. budget is a decimal string such as "1000.00".
+      description: Creates a project with at most one PC. Optional pc_user_id accepts
+        one positive user ID; the same PC may coordinate multiple projects. ADMIN
+        and PC must send pm_user_id. A PM creator becomes its PM; a PC creator becomes
+        its sole PC and cannot assign another PC at creation. budget is a decimal
+        string such as "1000.00".
       parameters:
       - description: Create project payload
         in: body
@@ -669,7 +940,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.BaseResponse'
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ProjectResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -697,8 +973,8 @@ paths:
       - projects
   /api/v1/projects/{id}:
     get:
-      description: Returns a single project with its PM and PCs. PM and PC can only
-        open projects they belong to.
+      description: Returns a single project with its PM and an assigned pc object
+        or null. PM and PC can only open projects they belong to.
       parameters:
       - description: Project ID
         in: path
@@ -712,7 +988,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.BaseResponse'
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ProjectResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -741,10 +1022,12 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Partially updates a project. ADMIN and the project's PM can change
-        every field; a PC of the project can only change name and description. Only
-        the project's PM can close it by sending status "CLOSED", and a closed project
-        cannot be changed.
+      description: Partially updates a project. Omit pc_user_id to keep its PC, send
+        a positive user ID to replace it, or null to remove it. ADMIN and the project's
+        PM can edit fields and assignments; the assigned PC can only change name and
+        description. Only the project's PM can close it by sending status "CLOSED".
+        Closing returns 409 if any Advance in this Project is not CLOSED, including
+        DRAFT. A closed project cannot be changed.
       parameters:
       - description: Project ID
         in: path
@@ -764,7 +1047,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.BaseResponse'
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ProjectResponse'
+              type: object
         "400":
           description: Bad Request
           schema:

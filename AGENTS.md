@@ -73,6 +73,8 @@ Important invariants:
 
 - An Advance belongs to a Project.
 
+- A Project has at most one PC. Only that assigned PC may create Advance Requests.
+
 - PC creates and submits Advance Requests.
 
 - PM approves or returns Advance Requests.
@@ -113,6 +115,8 @@ generators unless the task requires them.
 - ✅ **Always do:** Read the relevant requirement and affected
   vertical slice.
 - ✅ **Always do:** Keep changes scoped and test changed behavior.
+- ✅ **Always do:** For corrections to migrations the user confirms are unapplied,
+  update those existing files instead of creating another migration version.
 - ⚠️ **Ask first:** Before changing public API contracts or unresolved
   business rules.
 - ⚠️ **Ask first:** Before introducing major dependencies or

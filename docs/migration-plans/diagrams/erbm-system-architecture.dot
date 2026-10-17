@@ -71,7 +71,7 @@ digraph erbmArchitecture {
   }
 
   migrateRunner [label="[E] Migration CLI\ncmd/migrate - pgx\nUp/down SQL and version tracking", fillcolor="#f2f5f8", color="#7e8b99"];
-  legend [shape=plain, label="E = existing in repository\nP = proposed in ERBM-DB-0.2\nE/P = existing layer with planned additions\nArrows = calls or data access; dashed = proposed connection",
+  legend [shape=plain, label="E = existing in repository\nP = proposed in ERBM-DB-0.8\nE/P = existing layer with planned additions\nArrows = calls or data access; dashed = proposed connection",
     fontcolor="#46586b", fontsize=11];
 
   webClient -> router [label="HTTP / JSON"];

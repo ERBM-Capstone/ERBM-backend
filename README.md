@@ -9,9 +9,10 @@ REST API สำหรับ **Expense Reimbursement and Bill Management System (
 - ตรวจสอบผู้ใช้ปัจจุบันและควบคุมสิทธิ์ตามบทบาท
 - จัดการพนักงาน สร้างหลายรายการในคำขอเดียว และปิดใช้งานบัญชีเมื่อพ้นสภาพพนักงาน
 - จัดการโครงการ งบประมาณ PM และ PC พร้อมสิทธิ์การดู แก้ไข และปิดโครงการ
+- ดูรายการ Advance และสร้าง DRAFT พร้อมรหัสแยกตาม Project และประวัติการสร้าง
 - ดูเอกสาร API ผ่าน Swagger UI
 
-Advance Request, การเบิกจ่าย, Expense, OCR และการปิดเงินทดรองจ่ายเป็นขอบเขตของระบบ ERBM ที่ยังไม่มี API ในโค้ดปัจจุบัน
+Advance มี API ดูรายการและสร้าง DRAFT แล้ว รายละเอียดอยู่ใน [GET Advances](docs/api/advance-list.md) และ [POST Advances](docs/api/advance-create.md) ส่วนการส่งอนุมัติ การเบิกจ่าย Expense, OCR และการปิดเงินทดรองจ่ายยังเป็นงานถัดไป
 
 ## เทคโนโลยี
 
@@ -179,9 +180,12 @@ Logout ล้าง refresh cookie โดยยังไม่มีการเ
 
 - ADMIN และ PC ต้องระบุ `pm_user_id` ตอนสร้างโครงการ ส่วน PM ที่สร้างโครงการจะเป็น PM ของโครงการนั้นเอง
 - PC ที่สร้างโครงการถูกเพิ่มเป็น PC ของโครงการโดยอัตโนมัติ
+- หนึ่งโครงการมี PM 1 คนและ PC ได้ไม่เกิน 1 คน; PM และ PC แต่ละคนดูแลหลายโครงการได้ โดยเก็บ `pm_user_id` และ nullable `pc_user_id` ใน `projects` โดยตรง
+- POST รับ `pc_user_id` เป็น ID เดียว; PATCH ใช้ field เดียวกัน โดยไม่ส่งเพื่อคงผู้รับผิดชอบเดิม ส่ง `null` เพื่อลบ PC หรือส่ง ID จำนวนเต็มบวกเพื่อเปลี่ยน PC เฉพาะ ADMIN หรือ PM ของโครงการเปลี่ยนการมอบหมายได้
+- Response โครงการใช้ `pc` เป็น object หรือ `null` เช่นเดียวกับรูปแบบ `pm`; เฉพาะ PC ที่ได้รับมอบหมายเท่านั้นที่สร้าง Advance ได้ ดูรายละเอียดใน [Project coordinator](docs/api/project-coordinator.md)
 - PM และ PC ที่ถูกมอบหมายต้องเป็นบัญชี `ACTIVE` และมีบทบาทตรงกับหน้าที่
 - `budget` รับเป็น decimal string เช่น `"1000.00"` และวันที่ใช้รูปแบบ `YYYY-MM-DD`
-- เฉพาะ PM ของโครงการปิดโครงการได้ด้วย `status: "CLOSED"` โครงการที่ปิดแล้วแก้ไขหรือเปิดกลับไม่ได้
+- เฉพาะ PM ของโครงการปิดโครงการได้ด้วย `status: "CLOSED"` เมื่อไม่มี Advance หรือทุกใบเป็น `CLOSED` แล้ว ถ้ายังมีใบที่ไม่ `CLOSED` รวมถึง `DRAFT` จะคืน `409` โดยไม่บันทึก field อื่นใน PATCH นั้น โครงการที่ปิดแล้วแก้ไขหรือเปิดกลับไม่ได้
 
 ## API endpoints
 
@@ -206,6 +210,8 @@ Path ทั้งหมดในตารางมี prefix `/api/v1`:
 | `GET`   | `/projects/{id}`                    | ดูรายละเอียดโครงการ               | ADMIN, PM, PC, ACCOUNTING |
 | `POST`  | `/projects`                         | สร้างโครงการ                      | ADMIN, PM, PC             |
 | `PATCH` | `/projects/{id}`                    | แก้ไขหรือปิดโครงการตามสิทธิ์      | ADMIN, PM, PC             |
+| `GET`   | `/advances`                         | ดู Advance ตามสิทธิ์ พร้อมรหัสและผู้ขอ | ADMIN, PM, PC, ACCOUNTING |
+| `POST`  | `/advances`                         | สร้าง Advance DRAFT ในโครงการที่ได้รับมอบหมาย | PC |
 
 การดูหรือแก้ไขโครงการยังตรวจสิทธิ์ตามสมาชิกและ PM ของโครงการใน service ตามกฎด้านบน ดู payload และ HTTP status เพิ่มเติมได้ใน Swagger UI
 

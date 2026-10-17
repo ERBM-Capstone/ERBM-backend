@@ -13,11 +13,10 @@ import (
 // fakeProjectRepo keeps projects in memory so service rules can be tested
 // without a database.
 type fakeProjectRepo struct {
-	users        map[int64]model.AssignableUser
-	projects     map[int64]*model.Project
-	coordinators map[int64][]int64
-	nextID       int64
-	createErr    error
+	users     map[int64]model.AssignableUser
+	projects  map[int64]*model.Project
+	nextID    int64
+	createErr error
 }
 
 func newFakeProjectRepo() *fakeProjectRepo {
@@ -31,8 +30,7 @@ func newFakeProjectRepo() *fakeProjectRepo {
 			6: {UserID: 6, RoleCode: "PC", Status: model.UserStatusInvited},
 			7: {UserID: 7, RoleCode: "PM", Status: model.UserStatusActive},
 		},
-		projects:     map[int64]*model.Project{},
-		coordinators: map[int64][]int64{},
+		projects: map[int64]*model.Project{},
 	}
 }
 
@@ -40,18 +38,13 @@ func (r *fakeProjectRepo) WithTx(ctx context.Context, fn func(tx *gorm.DB) error
 	return fn(nil)
 }
 
-func (r *fakeProjectRepo) Create(ctx context.Context, tx *gorm.DB, project *model.Project) error {
+func (r *fakeProjectRepo) Create(ctx context.Context, project *model.Project) error {
 	if r.createErr != nil {
 		return r.createErr
 	}
 	r.nextID++
 	project.ID = r.nextID
 	r.projects[project.ID] = project
-	return nil
-}
-
-func (r *fakeProjectRepo) ReplaceCoordinators(ctx context.Context, tx *gorm.DB, projectID int64, userIDs []int64, actorID int64) error {
-	r.coordinators[projectID] = userIDs
 	return nil
 }
 
@@ -82,12 +75,8 @@ func (r *fakeProjectRepo) List(ctx context.Context, filter model.ProjectFilter) 
 }
 
 func (r *fakeProjectRepo) IsCoordinator(ctx context.Context, projectID int64, userID int64) (bool, error) {
-	for _, id := range r.coordinators[projectID] {
-		if id == userID {
-			return true, nil
-		}
-	}
-	return false, nil
+	project := r.projects[projectID]
+	return project != nil && project.PCUserID != nil && *project.PCUserID == userID, nil
 }
 
 func (r *fakeProjectRepo) Update(ctx context.Context, tx *gorm.DB, id int64, updates map[string]any) error {
@@ -101,13 +90,23 @@ func (r *fakeProjectRepo) Update(ctx context.Context, tx *gorm.DB, id int64, upd
 	if pmUserID, ok := updates["pm_user_id"].(int64); ok {
 		project.PMUserID = pmUserID
 	}
+	if pcUserID, present := updates["pc_user_id"]; present {
+		project.PCUserID = nil
+		if id, ok := pcUserID.(int64); ok {
+			project.PCUserID = &id
+		}
+	}
 	if status, ok := updates["status"].(model.ProjectStatus); ok {
 		project.Status = status
 	}
 	return nil
 }
 
-func (r *fakeProjectRepo) FindAssignableUsers(ctx context.Context, userIDs []int64) ([]model.AssignableUser, error) {
+func (r *fakeProjectRepo) HasUnclosedAdvances(context.Context, *gorm.DB, int64) (bool, error) {
+	return false, nil
+}
+
+func (r *fakeProjectRepo) FindAssignableUsers(ctx context.Context, _ *gorm.DB, userIDs []int64) ([]model.AssignableUser, error) {
 	var users []model.AssignableUser
 	for _, id := range userIDs {
 		if user, ok := r.users[id]; ok {
@@ -117,19 +116,11 @@ func (r *fakeProjectRepo) FindAssignableUsers(ctx context.Context, userIDs []int
 	return users, nil
 }
 
-func (r *fakeProjectRepo) ListManagers(ctx context.Context, projectIDs []int64) ([]model.ProjectMember, error) {
-	var members []model.ProjectMember
-	for _, id := range projectIDs {
-		members = append(members, model.ProjectMember{ProjectID: id, UserID: r.projects[id].PMUserID})
-	}
-	return members, nil
-}
-
-func (r *fakeProjectRepo) ListCoordinators(ctx context.Context, projectIDs []int64) ([]model.ProjectMember, error) {
-	var members []model.ProjectMember
-	for _, id := range projectIDs {
-		for _, userID := range r.coordinators[id] {
-			members = append(members, model.ProjectMember{ProjectID: id, UserID: userID})
+func (r *fakeProjectRepo) GetMembersByUserIDs(ctx context.Context, userIDs []int64) ([]model.ProjectUserSummary, error) {
+	var members []model.ProjectUserSummary
+	for _, id := range userIDs {
+		if _, ok := r.users[id]; ok {
+			members = append(members, model.ProjectUserSummary{UserID: id})
 		}
 	}
 	return members, nil
@@ -138,13 +129,13 @@ func (r *fakeProjectRepo) ListCoordinators(ctx context.Context, projectIDs []int
 func int64Ptr(v int64) *int64    { return &v }
 func stringPtr(v string) *string { return &v }
 
-func createRequest(pmUserID *int64, pcUserIDs ...int64) *dto.CreateProjectRequest {
+func createRequest(pmUserID, pcUserID *int64) *dto.CreateProjectRequest {
 	return &dto.CreateProjectRequest{
 		ProjectCode: " erbm-01 ",
 		Name:        "ERBM Pilot",
 		Budget:      "1000.00",
 		PMUserID:    pmUserID,
-		PCUserIDs:   pcUserIDs,
+		PCUserID:    pcUserID,
 	}
 }
 
@@ -152,17 +143,17 @@ func createRequest(pmUserID *int64, pcUserIDs ...int64) *dto.CreateProjectReques
 func seedProject(t *testing.T, repo *fakeProjectRepo) *ProjectService {
 	t.Helper()
 	svc := NewProjectService(repo)
-	if _, err := svc.Create(context.Background(), 2, "PM", createRequest(nil, 3)); err != nil {
+	if _, err := svc.Create(context.Background(), 2, "PM", createRequest(nil, int64Ptr(3))); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
 	return svc
 }
 
-func TestProjectCreateByPCAddsCreatorAsPC(t *testing.T) {
+func TestProjectCreateByPCAddsCreatorAsSolePC(t *testing.T) {
 	repo := newFakeProjectRepo()
 	svc := NewProjectService(repo)
 
-	detail, err := svc.Create(context.Background(), 3, "PC", createRequest(int64Ptr(2), 4))
+	detail, err := svc.Create(context.Background(), 3, "PC", createRequest(int64Ptr(2), nil))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -172,8 +163,8 @@ func TestProjectCreateByPCAddsCreatorAsPC(t *testing.T) {
 	if detail.Project.PMUserID != 2 {
 		t.Errorf("pm = %d, want 2", detail.Project.PMUserID)
 	}
-	if len(detail.PCs) != 2 {
-		t.Errorf("pcs = %d, want 2 (creator + requested PC)", len(detail.PCs))
+	if detail.PC == nil || detail.PC.UserID != 3 {
+		t.Errorf("pc = %#v, want creator 3", detail.PC)
 	}
 }
 
@@ -181,22 +172,22 @@ func TestProjectCreateByPMWithoutPC(t *testing.T) {
 	repo := newFakeProjectRepo()
 	svc := NewProjectService(repo)
 
-	detail, err := svc.Create(context.Background(), 2, "PM", createRequest(nil))
+	detail, err := svc.Create(context.Background(), 2, "PM", createRequest(nil, nil))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if detail.Project.PMUserID != 2 {
 		t.Errorf("pm = %d, want creator 2", detail.Project.PMUserID)
 	}
-	if len(detail.PCs) != 0 {
-		t.Errorf("pcs = %d, want 0", len(detail.PCs))
+	if detail.PC != nil {
+		t.Errorf("pc = %#v, want nil", detail.PC)
 	}
 }
 
 func TestProjectCreateByPCRequiresPM(t *testing.T) {
 	svc := NewProjectService(newFakeProjectRepo())
 
-	_, err := svc.Create(context.Background(), 3, "PC", createRequest(nil))
+	_, err := svc.Create(context.Background(), 3, "PC", createRequest(nil, nil))
 	if !errors.Is(err, dto.ErrBadRequest) {
 		t.Fatalf("err = %v, want %v", err, dto.ErrBadRequest)
 	}
@@ -207,7 +198,7 @@ func TestProjectCreateDuplicateCode(t *testing.T) {
 	repo.createErr = dto.ErrProjectCodeExists
 	svc := NewProjectService(repo)
 
-	_, err := svc.Create(context.Background(), 2, "PM", createRequest(nil))
+	_, err := svc.Create(context.Background(), 2, "PM", createRequest(nil, nil))
 	if !errors.Is(err, dto.ErrProjectCodeExists) {
 		t.Fatalf("err = %v, want %v", err, dto.ErrProjectCodeExists)
 	}
@@ -219,10 +210,10 @@ func TestProjectCreateInvalidMembers(t *testing.T) {
 		req  *dto.CreateProjectRequest
 		want error
 	}{
-		{"pm has PC role", createRequest(int64Ptr(3)), dto.ErrInvalidProjectManager},
-		{"pm does not exist", createRequest(int64Ptr(99)), dto.ErrInvalidProjectManager},
-		{"pc has PM role", createRequest(int64Ptr(2), 7), dto.ErrInvalidProjectCoordinator},
-		{"pc is not active", createRequest(int64Ptr(2), 6), dto.ErrInvalidProjectCoordinator},
+		{"pm has PC role", createRequest(int64Ptr(3), nil), dto.ErrInvalidProjectManager},
+		{"pm does not exist", createRequest(int64Ptr(99), nil), dto.ErrInvalidProjectManager},
+		{"pc has PM role", createRequest(int64Ptr(2), int64Ptr(7)), dto.ErrInvalidProjectCoordinator},
+		{"pc is not active", createRequest(int64Ptr(2), int64Ptr(6)), dto.ErrInvalidProjectCoordinator},
 	}
 
 	for _, tt := range tests {
@@ -239,7 +230,7 @@ func TestProjectCreateInvalidMembers(t *testing.T) {
 func TestProjectCreateInvalidBudget(t *testing.T) {
 	for _, budget := range []string{"0", "-5", "abc", "10.555"} {
 		svc := NewProjectService(newFakeProjectRepo())
-		req := createRequest(nil)
+		req := createRequest(nil, nil)
 		req.Budget = budget
 
 		_, err := svc.Create(context.Background(), 2, "PM", req)
@@ -252,7 +243,7 @@ func TestProjectCreateInvalidBudget(t *testing.T) {
 func TestProjectCreateByAccountingForbidden(t *testing.T) {
 	svc := NewProjectService(newFakeProjectRepo())
 
-	_, err := svc.Create(context.Background(), 5, "ACCOUNTING", createRequest(int64Ptr(2)))
+	_, err := svc.Create(context.Background(), 5, "ACCOUNTING", createRequest(int64Ptr(2), nil))
 	if !errors.Is(err, dto.ErrForbidden) {
 		t.Fatalf("err = %v, want %v", err, dto.ErrForbidden)
 	}

@@ -282,7 +282,7 @@
 <title>legend</title>
 <path fill="#edf4fb" stroke="none" d="M836.38,-921.55C836.38,-921.55 565.62,-921.55 565.62,-921.55 559.62,-921.55 553.62,-915.55 553.62,-909.55 553.62,-909.55 553.62,-885.55 553.62,-885.55 553.62,-879.55 559.62,-873.55 565.62,-873.55 565.62,-873.55 836.38,-873.55 836.38,-873.55 842.38,-873.55 848.38,-879.55 848.38,-885.55 848.38,-885.55 848.38,-909.55 848.38,-909.55 848.38,-915.55 842.38,-921.55 836.38,-921.55"/>
 <text text-anchor="middle" x="701" y="-911.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#46586b">E = existing in repository</text>
-<text text-anchor="middle" x="701" y="-899.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#46586b">P = proposed in ERBM&#45;DB&#45;0.2</text>
+<text text-anchor="middle" x="701" y="-899.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#46586b">P = proposed in ERBM&#45;DB&#45;0.8</text>
 <text text-anchor="middle" x="701" y="-887.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#46586b">E/P = existing layer with planned additions</text>
 <text text-anchor="middle" x="701" y="-875.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#46586b">Arrows = calls or data access; dashed = proposed connection</text>
 </g>

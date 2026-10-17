@@ -105,6 +105,15 @@ func New(db *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, logi
 		}
 	}
 
+	// Reviewed Advance list and draft creation endpoints.
+	advancesRepo := repository.NewAdvanceRepository(db)
+	advancesSvc := service.NewAdvanceService(advancesRepo)
+	advancesHandler := handler.NewAdvanceHandler(advancesSvc)
+	advances := protected.Group("/advances")
+	advances.Use(middleware.RequireRole("ADMIN", "PM", "PC", "ACCOUNTING"))
+	advances.GET("", advancesHandler.List)
+	advances.POST("", middleware.RequireRole("PC"), advancesHandler.Create)
+
 	return r
 }
 

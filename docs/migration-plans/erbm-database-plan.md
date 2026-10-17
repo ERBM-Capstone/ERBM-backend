@@ -1,21 +1,26 @@
 # ERBM — แผนฐานข้อมูลกลางและการแบ่ง migration
 
-รหัสแผน: `ERBM-DB-0.2` · วันที่: 15 ตุลาคม 2026
+รหัสแผน: `ERBM-DB-0.9` · วันที่: 17 ตุลาคม 2026
 
 เอกสารนี้เป็น schema blueprint ชุดเดียวสำหรับแจกงานสร้าง migration และ backend
 ครอบคลุม **17 application tables: มี SQL แล้ว 8 + เสนอเพิ่ม 9** และ
 `schema_migrations` อีก 1 system table ทุกงานควรอ้างรหัสแผนนี้และชื่อ table/column
 ในเอกสารเดียวกัน ไม่ออกแบบชื่อหรือความสัมพันธ์ใหม่แยกกันในแต่ละ ticket
 
-สถานะ: **แผนกลางพร้อม SQL สำหรับ Advance ใน 0005** ผู้ใช้เลือกให้สร้าง Advance
-ตาม blueprint นี้ จึงมีคู่ไฟล์ 0005 สำหรับ advances และ advance_workflow_events แล้ว
-ยังไม่ได้ apply ฐานจริง ส่วนโมดูลอื่นและ business rules ที่ค้างอยู่ยังเป็นข้อเสนอ
-ข้อมูล schema ในเอกสารอ้างจาก repository ไม่ใช่การตรวจฐานข้อมูลที่ deploy แล้ว
+สถานะ: **แก้ creation migrations ที่ยังไม่ apply ตามคำยืนยันของผู้ใช้**
+ผู้ใช้แจ้งว่า local apply เฉพาะ 0001, 0002, 0004; จึงใช้ nullable `projects.pc_user_id` โดยตรงใน 0003
+และรวม Advance, รหัสถาวร, counter, audit และ ACTIVE guard ใน 0005 โดยตรง
+ข้อมูลนี้มาจากผู้ใช้ ไม่ใช่การตรวจฐานจริง; ไม่แก้ 0001/0002/0004 และไม่รัน migration
 
 ## 1. ขอบเขตและแหล่งข้อมูล
 
 ครอบคลุม Auth, Employee, Project, Advance Request, PM review, disbursement,
 Expense, เอกสารค่าใช้จ่าย, OCR และ Closing ตาม requirement ปัจจุบัน
+ผู้ใช้ยืนยันว่าทุกยอดเงินเป็นเงินบาท (THB) จึงไม่เก็บ currency_code ใน advances
+และไม่ต้องมี field นี้ใน request/response ของ Advance ที่จะออกแบบต่อ
+ผู้ใช้ยืนยันว่าปิด Project ได้เมื่อไม่มี Advance หรือทุกใบเป็น `CLOSED` แล้ว
+สถานะอื่นทุกสถานะรวมถึง `DRAFT` บล็อกการปิด โดยตรวจใน service transaction
+ที่ล็อก Project ร่วมกับการสร้าง Advance ไม่ต้องเพิ่ม migration สำหรับกฎนี้
 การเบิกคืนโดยไม่มี Advance, supplier/bill payment แยกจาก Expense, tax engine,
 fiscal-year policy และ MD digital signature ยังไม่มี requirement เพียงพอ
 จึงเป็นรายการขยายขอบเขตที่ต้องตกลงก่อนเพิ่ม schema
@@ -43,11 +48,11 @@ fiscal-year policy และ MD digital signature ยังไม่มี requi
 | `roles` | E | บทบาทของบัญชี | 0001 |
 | `employees` | E | ข้อมูลพนักงาน | 0001 + 0002 |
 | `users` | E | บัญชีและ credentials | 0001 + 0002 |
-| `projects` | E | โครงการและ PM | 0003 |
-| `project_coordinators` | E | PC ของแต่ละโครงการ | 0003 |
+| `projects` | E | โครงการ, PM หนึ่งคน และ PC ได้ไม่เกินหนึ่งคนผ่าน nullable pc_user_id | 0003 |
 | `account_activation_tokens` | E | token hash สำหรับเปิดใช้งานบัญชี | 0004 |
-| `advances` | E (SQL) | Advance Request และสถานะหลัก; API ยังเป็น P | 0005 |
-| `advance_workflow_events` | E (SQL) | ประวัติการเปลี่ยนข้อมูล/สถานะ Advance; service ยังเป็น P | 0005 |
+| `advances` | E (SQL) | Advance Request, รหัสถาวร และสถานะหลัก; มี GET/POST แล้ว | 0005 |
+| `advance_workflow_events` | E (SQL) | ประวัติ Advance; POST บันทึก CREATE พร้อม DRAFT ใน transaction | 0005 |
+| `project_advance_counters` | E (SQL) | เลขลำดับอิสระของแต่ละ Project สำหรับออกรหัส Advance | 0005 |
 | `advance_disbursements` | P | การจ่ายเงินจริงที่ Accounting ยืนยัน | 0006 |
 | `expenses` | P | จำนวน Expense ที่ผู้ใช้กรอก/ยืนยัน | 0007 |
 | `expense_audit_events` | P | ประวัติแก้ไขและยืนยัน Expense | 0007 |
@@ -62,7 +67,7 @@ fiscal-year policy และ MD digital signature ยังไม่มี requi
 0005 ใช้ `advances` table เดียวตั้งแต่ Request จน CLOSED เพื่อไม่ต้อง copy
 คำขอที่อนุมัติไปอีก table หรือให้ Expense ต้องเลือกระหว่าง request ID กับ advance ID
 ประวัติ revision อยู่ใน event table แทนการสร้าง Advance ใหม่ทุกครั้งที่ PM ส่งกลับ
-โครงสร้างของสอง table นี้ถูกเลือกให้สร้างตามแผนแล้ว; workflow/API ที่ยังไม่มี
+โครงสร้าง Advance, ประวัติและ counter ถูกเลือกให้สร้างตามแผนแล้ว; workflow/API ที่ยังไม่มี
 requirement ยืนยันไม่ถือว่าได้รับการอนุมัติเพิ่มจากการสร้าง SQL
 
 ## 3. Architecture และความสัมพันธ์หลัก
@@ -84,7 +89,7 @@ Architecture นี้มี Go backend หนึ่ง application process แ�
   มีเส้นทางของตัวเอง ส่วน protected routes ผ่าน JWT และ role middleware
 - **Handler / DTO:** bind request และรับ actor จาก authentication ส่งต่อไป service
 - **Service:** ตรวจสิทธิ์ตาม Project, business rules, workflow, exact money,
-  และประสาน transaction; Advance/Disbursement/Expense/OCR/Closing ยังเป็น P
+  และประสาน transaction; Advance มี GET/POST แล้ว ส่วน review/Disbursement/Expense/OCR/Closing ยังเป็น P
 - **Repository:** เป็นทางเข้า SQL ของ application ผ่าน GORM และ context;
   service ส่ง transaction/lock ที่ใช้ร่วมกันในการเปลี่ยนข้อมูลการเงินและ audit
 - **PostgreSQL:** รวม 17 application tables ใน data dictionary นี้ และ
@@ -119,8 +124,8 @@ flowchart LR
 
     subgraph databaseLayer ["One PostgreSQL database - application tables"]
         authTables["roles, employees, users, account_activation_tokens"]
-        projectTables["projects, project_coordinators"]
-        advanceTables["advances, advance_workflow_events"]
+        projectTables["projects (pm_user_id, nullable pc_user_id)"]
+        advanceTables["advances, advance_workflow_events, project_advance_counters"]
         disbursementTables["advance_disbursements"]
         expenseTables["expenses, expense_audit_events, expense_documents"]
         ocrTables["ocr_extractions, ocr_line_items"]
@@ -149,9 +154,9 @@ erDiagram
     EMPLOYEES ||--o| USERS : has_account
     USERS ||--o{ ACCOUNT_ACTIVATION_TOKENS : invited_with
     USERS ||--o{ PROJECTS : manages
-    PROJECTS ||--o{ PROJECT_COORDINATORS : has_members
-    USERS ||--o{ PROJECT_COORDINATORS : coordinates
+    USERS o|--o{ PROJECTS : coordinates
     PROJECTS ||--o{ ADVANCES : funds
+    PROJECTS ||--o| PROJECT_ADVANCE_COUNTERS : allocates
     ADVANCES ||--o{ ADVANCE_WORKFLOW_EVENTS : records
     ADVANCES ||--o| ADVANCE_DISBURSEMENTS : disbursed_as
     ADVANCES ||--o{ EXPENSES : contains
@@ -166,8 +171,10 @@ erDiagram
     ADVANCE_CLOSINGS ||--o{ ADVANCE_CLOSING_EVENTS : records
 ```
 
-Cardinality ของตารางใหม่ทั้งหมดเป็น P โดยเฉพาะการจ่าย 0..1 ครั้ง (D04),
+Cardinality ของตารางที่ยังเป็นข้อเสนอเป็น P โดยเฉพาะการจ่าย 0..1 ครั้ง (D04),
 เอกสารก่อนสร้าง Expense (D06), OCR หลายรอบ (D06), และ Closing หลายคำขอ (D07)
+Project ต้องมี PM หนึ่งคนและมี PC ได้ไม่เกินหนึ่งคน; PM/PC แต่ละคนดูแลหลาย Project ได้
+โดยใช้ FK ใน `projects` โดยตรง ไม่มี join table สำหรับ PC
 FK ของ actor ไป `users` แสดงใน data dictionary แทนการวาดเส้นซ้ำทุก table
 
 ## 4. Convention ที่ใช้ร่วมกันสำหรับตารางใหม่ — P
@@ -175,7 +182,8 @@ FK ของ actor ไป `users` แสดงใน data dictionary แทน�
 | เรื่อง | ข้อเสนอที่ใช้ใน blueprint | Decision |
 | --- | --- | --- |
 | Entity ID | `BIGSERIAL` PK, FK เป็น `BIGINT`; ไม่เปลี่ยน `roles.id` เดิมที่เป็น `INTEGER` | D01 |
-| Money | `NUMERIC(15,2)`; Go ใช้ decimal string/การคำนวณ exact decimal | D02: precision, scale, currency |
+| Money | `NUMERIC(15,2)`; Go ใช้ decimal string/การคำนวณ exact decimal | D02: precision, scale และเงื่อนไขยอด |
+| Currency | ทุกยอดเป็น THB ตามคำยืนยันของผู้ใช้; Advance ไม่มี currency column | C |
 | Date/time | วันเอกสาร `DATE`; เหตุการณ์ `TIMESTAMPTZ`; service จัดการ timezone ตอนแสดงผล | D01 |
 | FK ของข้อมูลการเงิน/actor ใหม่ | `ON DELETE RESTRICT`; ปิดใช้งานบัญชีแทนการลบประวัติ | D03 |
 | Mutable entity audit | common columns ด้านล่าง; `updated_at` และ actor ต้องเขียนโดย service | D01 |
@@ -213,8 +221,8 @@ Common columns เป็นส่วนหนึ่งของ data dictionary 
 
 ## 5. Data dictionary — ตารางเดิม E
 
-ส่วนนี้สรุป schema ที่มีจริงในไฟล์ 0001–0004 รวม ALTER จาก 0002 แล้ว
-ไม่ได้เสนอแก้ migration เดิม
+ส่วนนี้สรุป schema ในไฟล์ 0001–0004 รวม ALTER จาก 0002 แล้ว
+0003 แก้ในไฟล์เดิมตามคำยืนยันของผู้ใช้ว่ายังไม่ apply; ไม่แก้ 0001/0002/0004 ที่ apply แล้ว
 
 ### `roles`
 
@@ -281,6 +289,7 @@ Index เดิม: `idx_users_status(status)`; ยังไม่มี session
 | `end_date` | DATE | ได้ | NULL |
 | `status` | VARCHAR(20) | ไม่ | ACTIVE; CHECK ACTIVE/CLOSED |
 | `pm_user_id` | BIGINT | ไม่ | FK users; RESTRICT |
+| `pc_user_id` | BIGINT | ได้ | NULL; FK users; RESTRICT |
 | `closed_at` | TIMESTAMPTZ | ได้ | NULL |
 | `closed_by` | BIGINT | ได้ | FK users; SET NULL |
 | `created_by` | BIGINT | ได้ | FK users; SET NULL |
@@ -288,20 +297,21 @@ Index เดิม: `idx_users_status(status)`; ยังไม่มี session
 | `created_at` | TIMESTAMPTZ | ไม่ | NOW() |
 | `updated_at` | TIMESTAMPTZ | ไม่ | NOW() |
 
-เดิมมี date-range CHECK, `uq_projects_project_code`, `idx_projects_pm_user_id`,
-`idx_projects_status` และ budget เป็น reference ที่ funds เกินได้
+มี date-range CHECK, `uq_projects_project_code`, `idx_projects_pm_user_id`,
+nonunique `idx_projects_pc_user_id`, `idx_projects_status` และ budget เป็น reference ที่ funds เกินได้
 ไม่มี constraint จำกัดยอด Advance/Expense ตาม Project budget
 
-### `project_coordinators`
-
-| Column | Type | Nullable | Default / key |
-| --- | --- | --- | --- |
-| `project_id` | BIGINT | ไม่ | composite PK; FK projects; CASCADE |
-| `user_id` | BIGINT | ไม่ | composite PK; FK users; RESTRICT |
-| `created_by` | BIGINT | ได้ | FK users; SET NULL |
-| `created_at` | TIMESTAMPTZ | ไม่ | NOW() |
-
-PK: `(project_id, user_id)`; index เดิม: `idx_project_coordinators_user_id(user_id)`
+`pm_user_id` ต้องมีค่าและ `pc_user_id` เป็น nullable FK ใน `projects` โดยตรง
+ไม่มี `project_coordinators` table และไม่มี unique constraint บน PM/PC FK
+จึงมี PM หนึ่งคนและ PC ได้ไม่เกินหนึ่งคนต่อ Project แต่ PM/PC คนเดิมดูแลหลาย Project ได้
+ผู้ใช้ยืนยันว่า 0003 ยังไม่ apply จึงแก้ไฟล์เดิมโดยไม่ต้องมี delta migration หรือ backfill
+POST/PATCH รับ `pc_user_id` เดี่ยว; PATCH ไม่ส่ง field นี้เพื่อคงค่าเดิม ส่ง null เพื่อลบ
+หรือส่ง ID จำนวนเต็มบวกเพื่อแทนที่ เฉพาะ ADMIN/PM ของ Project เปลี่ยนการมอบหมายได้
+PC ผู้สร้าง Project ถูกมอบหมายให้ตนเองอัตโนมัติ และ PC ที่ได้รับมอบหมายแก้ได้เฉพาะชื่อ/รายละเอียด
+API response ใช้ `pc` object หรือ null เช่นเดียวกับ `pm` แทน array
+Go ใช้ `Project.PCUserID *int64` และ `ProjectDetail.PC *ProjectMember`
+PM/PC ที่มอบหมายต้องเป็นบัญชี ACTIVE และมีบทบาทตรงตามหน้าที่
+เฉพาะ PC ที่ได้รับมอบหมายสร้าง Advance ได้
 
 ### `account_activation_tokens`
 
@@ -340,8 +350,8 @@ Nullable/default/ความสัมพันธ์ของ advances แล�
 | --- | --- | --- | --- | --- |
 | `project_id` | BIGINT | ไม่ | ไม่มี | FK projects.id |
 | `purpose` | TEXT | ไม่ | ไม่มี | เหตุผล/วัตถุประสงค์ของ Request |
+| `advance_code` | TEXT | ไม่ | ไม่มี | UNIQUE; ADV-{project_code}-{เลขลำดับใน Project}; สร้างและเก็บถาวรตั้งแต่ DRAFT ใน 0005 |
 | `amount` | NUMERIC(15,2) | ไม่ | ไม่มี | จำนวน Advance ที่ใช้ใน Closing equation; การแก้หลังอนุมัติรอ D04 |
-| `currency_code` | CHAR(3) | ไม่ | ไม่มี | สกุลเงินของ Advance; ไม่มี default THB โดยยังไม่ยืนยัน D02 |
 | `status` | VARCHAR(40) | ไม่ | DRAFT | สถานะหลัก; Closing placement รอ D05 |
 | `submitted_at` | TIMESTAMPTZ | ได้ | NULL | เวลาส่งล่าสุด; ประวัติทุกครั้งอยู่ใน event |
 | `submitted_by` | BIGINT | ได้ | NULL | FK users.id; PC ผู้ส่ง |
@@ -359,7 +369,26 @@ Nullable/default/ความสัมพันธ์ของ advances แล�
   `CLOSED` เป็นสถานะที่ยืนยัน แต่ยังไม่ทำ CHECK แบบปิดชุดจน D05 ยืนยัน
 - ไม่เพิ่ม uniqueness ของ DRAFT/APPROVED หรือเงื่อนไข fiscal year จากการเดา
 
+### `project_advance_counters`
+
+ตาราง technical counter ใน 0005 ไม่มี common mutable/audit columns;
+การจองเลขสำเร็จพร้อม CREATE event ของ Advance ใน transaction เดียวกัน
+
+| Column | Type | Nullable | Default / constraint | ความหมาย |
+| --- | --- | --- | --- | --- |
+| `project_id` | BIGINT | ไม่ | PK, FK projects.id ON DELETE RESTRICT | หนึ่ง counter ต่อ Project |
+| `last_number` | BIGINT | ไม่ | CHECK > 0 | เลขล่าสุด; เริ่มที่ 1 ในการ allocate ครั้งแรก และเพิ่มด้วย atomic UPSERT |
+
+รหัสที่ออกแล้วอยู่ใน advances.advance_code ไม่คำนวณใหม่จากชื่อ Project ตอน GET
+การ rollback 0005 ลบ Advance, events และ counter; ต้องสำรองหากต้องรักษาข้อมูล
+
 ### `advance_workflow_events`
+
+ผู้ใช้ยืนยันประวัติแบบ 2: เก็บทั้งผู้กระทำ เหตุการณ์ เวลา สถานะ เหตุผล
+และ snapshot ของคำขอแต่ละรอบ เพื่อย้อนดูยอดและรายละเอียดเดิมหลังมีการแก้ไข
+ข้อมูลใน `advances` เป็นค่าปัจจุบัน ส่วน snapshot ที่บันทึกแล้วต้องคงข้อมูลของรอบนั้น
+ปัจจุบัน POST บันทึก CREATE snapshot แล้ว; ประวัติตอนส่ง/ส่งใหม่และการอ่าน revisions
+เป็นงานของ endpoint ที่จะรีวิวต่อ ไม่ถือว่าทำครบแล้วจากการมี schema นี้
 
 ใช้ common event columns ทั้ง 7 column ในหัวข้อ 4 และเพิ่ม:
 
@@ -407,7 +436,7 @@ transaction ต้องบันทึก disbursement + เปลี่ยน 
 | `confirmed_at` | TIMESTAMPTZ | ได้ | NULL | การยืนยันจำนวนเงินโดยผู้ใช้; นิยาม/ขั้นตอนรอ D08 |
 | `confirmed_by` | BIGINT | ได้ | NULL | FK users.id; ไม่ได้แปลว่า Accounting approval |
 
-- P: currency ใช้ของ Advance; การปฏิเสธเอกสารต่างสกุลรอ D02
+- C: ยอด Expense เป็น THB เช่นเดียวกับ Advance; วิธีจัดการผล OCR ของเอกสารต่างสกุลยังรอ D06
 - P: `UNIQUE(id, advance_id)` เพื่อให้ downstream composite FK บังคับความสัมพันธ์
   ของ Expense/เอกสาร/Closing กับ Advance เดียวกัน
 - P: `idx_expenses_advance_date(advance_id, expense_date, id)`
@@ -578,20 +607,22 @@ Expense/Closing ของ Advance นั้น ผ่าน repository ที่
    อัปเดต snapshots/ผลตรวจ/สถานะและ events ใน transaction เดียวกัน
 4. ไม่ใช้ row CHECK ที่อ้าง SUM ของ Expense อีก table เพื่อแทนการตรวจสมการ
    และไม่อนุมานว่าผู้ใช้มี role แล้วเข้าถึงทุก Project ได้
-5. หลังเริ่ม Closing จะบันทึก Expense ต่อได้หรือไม่, สถานะหลักควรเปลี่ยนเป็นอะไร,
-   และการปิด Project ขณะมี Advance ค้าง ต้องตกลง D05/D07/D09 ก่อนบังคับเพิ่ม
+5. Project closing: lock Project ก่อนตรวจ Advance ของ Project นั้นทุกใบ;
+   ถ้ามีสถานะที่ไม่ใช่ `CLOSED` ให้คืน 409 และไม่บันทึก PATCH ส่วนอื่น
+   การสร้าง Advance ใช้ lock Project เดียวกันจึงไม่แทรก DRAFT ระหว่างตรวจและ commit
+6. หลังเริ่ม Advance Closing จะบันทึก Expense ต่อได้หรือไม่ และสถานะหลักควรเปลี่ยน
+   เป็นอะไร ยังต้องตกลง D05/D07; fiscal-year/cancellation และ VAT/WHT ยังรอ D09
 
 ## 8. แผน migration และขอบเขตงาน
 
-0005_create_advance_workflow มีไฟล์ใน repository แล้ว เลข **0006–0009 ยังเป็นชื่อ
-ที่เสนอและไม่ได้จองข้าม branch** ให้ผู้ดูแล integration ตรวจ migration pending
-ของทีมก่อนสร้างไฟล์ ใช้ numbering เดิมใน repo/Makefile
-ส่วน database-migration skill ที่ระบุ timestamp ยังเป็น naming conflict ที่ต้องสะสาง
-ก่อน implementation ไม่เปลี่ยนประวัติ 0001–0004 ในงานนี้
+0003/0005 ยังไม่ apply ตามที่ผู้ใช้แจ้ง จึงรวมการแก้ไขไว้ในไฟล์เดิม
+เลข **0006–0009 ยังเป็นข้อเสนอและไม่มีไฟล์ที่พร้อม deploy**
+ใช้ sequential convention ตาม repository/Makefile และคำสั่งผู้ใช้
 
 | Version | Tables / integrity ที่ต้องมาพร้อมกัน | Dependency | Readiness ของ SQL | ผู้รับผิดชอบ / reviewer |
 | --- | --- | --- | --- | --- |
-| `0005_create_advance_workflow` | advances + advance_workflow_events + one-ACTIVE partial unique + FKs/indexes | users/projects เดิม | SQL created; ยังไม่ apply/test บน PostgreSQL; workflow ที่ค้างยังไม่ encode | ผู้ทำ Advance / ผู้ทำ Expense |
+| `0003_create_projects` | projects + required PM FK + nullable PC FK + nonunique indexes | users เดิม | SQL corrected in place; ผู้ใช้ยืนยันว่ายังไม่ apply | ผู้ทำ Project / integration reviewer |
+| `0005_create_advance_workflow` | advances + codes/counters + events + one-ACTIVE partial unique + FKs/indexes | users/projects เดิม | SQL created; ยังไม่ apply/test บน PostgreSQL; workflow ที่ค้างยังไม่ encode | ผู้ทำ Advance / ผู้ทำ Expense |
 | `0006_create_advance_disbursements` | advance_disbursements + FK/unique ตาม D04 | 0005 | provisional: D02–D04 | ผู้ทำ Advance / ผู้ทำ Closing |
 | `0007_create_expense_records` | expenses + expense_audit_events + expense_documents + composite FK/keys | 0005 | provisional: D01–D03, D06, D08 | ผู้ทำ Expense / ผู้ทำ Advance |
 | `0008_create_ocr_evidence` | ocr_extractions + ocr_line_items + FK/keys | 0007 | provisional: D02, D03, D06 | ผู้ทำ OCR / ผู้ทำ Expense |
@@ -601,6 +632,7 @@ Expense/Closing ของ Advance นั้น ผ่าน repository ที่
 
 | Ticket | Up path | Down path |
 | --- | --- | --- |
+| DB-03 | `migrations/0003_create_projects.up.sql` | `migrations/0003_create_projects.down.sql` |
 | DB-05 | `migrations/0005_create_advance_workflow.up.sql` | `migrations/0005_create_advance_workflow.down.sql` |
 | DB-06 | `migrations/0006_create_advance_disbursements.up.sql` | `migrations/0006_create_advance_disbursements.down.sql` |
 | DB-07 | `migrations/0007_create_expense_records.up.sql` | `migrations/0007_create_expense_records.down.sql` |
@@ -609,10 +641,10 @@ Expense/Closing ของ Advance นั้น ผ่าน repository ที่
 
 ### DB-05: Advance workflow
 
-- Up: สร้าง advances ก่อน event table; ใส่ ACTIVE guard ใน transaction เดียวกัน
+- Up: สร้าง advances พร้อม unique advance_code, project_advance_counters และ event table; ใส่ ACTIVE guard ในไฟล์เดียวกัน
 - Boundary: table และประวัติทำให้ Request ใช้ได้ครบ ส่วน guard ต้องไม่อยู่ version ถัดไป
-- Interface ส่งต่อ: `advances.id BIGINT`, `project_id`, `amount`, `currency_code`, `status`
-- Down: event table ก่อน advances; ต้องถอน 0006/0007/0009 ก่อนเพราะมี FK
+- Interface ส่งต่อ: `advances.id BIGINT`, `advance_code TEXT UNIQUE`, `project_id`, `amount` เป็น THB, `status` และ `project_advance_counters`
+- Down: event table ก่อน advances แล้ว counter; ต้องถอน Disbursement/Expense/Closing ก่อนเพราะมี FK
 - Acceptance: FK ถูกต้อง, มี ACTIVE สองรายการใน Project เดียวไม่ได้, คนละ Project ได้,
   และ event อยู่ใน transaction ของการเปลี่ยนสถานะ
 - Gate: ใช้ Request/review ได้เมื่อ API และ rules พร้อม; ยังเปิด disbursement/activation
@@ -657,11 +689,11 @@ Expense/Closing ของ Advance นั้น ผ่าน repository ที่
 
 ## 9. Apply, rollback และข้อมูลเดิม
 
-ลำดับรวมที่เสนอ: `0005 -> 0006 -> 0007 -> 0008 -> 0009`
+ลำดับโมดูลที่เสนอ: `0005 -> 0006 -> 0007 -> 0008 -> 0009`; ฐาน local ที่ผู้ใช้แจ้งต้อง apply 0003 ก่อน 0005
 dependency ของ DB-07 ไม่บังคับรอ DB-06 ตอนออกแบบ และ DB-09 ไม่พึ่งผล OCR
 ส่วน runner เรียงชื่อไฟล์จึง apply ตามลำดับชื่อเมื่อไฟล์ทั้งหมดอยู่ใน release เดียวกัน
 
-ย้อนกลับทั้งชุด: `0009 -> 0008 -> 0007 -> 0006 -> 0005`
+ย้อนกลับโมดูล: `0009 -> 0008 -> 0007 -> 0006 -> 0005`
 ทุก down ที่ drop table ลบข้อมูลใน table ด้วย การ recreate ด้วย up ไม่กู้ข้อมูลนั้น
 การถอนบนฐานที่มีข้อมูลจริงต้องประเมิน backup/restore หรือใช้ forward fix และ
 deploy application ที่ไม่เรียก schema ที่จะถอดก่อน ไม่ใช้ `CASCADE` ซ่อน dependency
@@ -697,7 +729,8 @@ expand -> backfill/validate -> constrain/contract ตามข้อมูลจ
 | งาน | เจ้าของงานเชิงบทบาท | เริ่มได้เมื่อ | ทำขนานได้ | Handoff ที่ต้องส่ง |
 | --- | --- | --- | --- | --- |
 | ยืนยัน common schema/จองเลข | Integration owner | ตอนนี้ | ทุกกลุ่มเตรียม decision sheet | revision ของเอกสารกลาง + resolved Dxx + version registry |
-| DB-05/06 | Advance owner | ออกแบบได้ตอนนี้; SQL หลัง Dxx ของ version ตอบครบ | Expense/OCR/Closing ออกแบบ | up/down, model interface, transaction/audit contract, test evidence |
+| DB-05/06 | Advance owner | 0005 มี SQL แล้ว; Disbursement รอ Dxx | Expense/OCR/Closing ออกแบบ | up/down, model interface, transaction/audit contract, test evidence |
+| DB-03 | Project owner | 0003 แก้ใน version เดิมที่ยังไม่ apply | Advance integration | direct nullable PC FK/nonunique index, membership tests |
 | DB-07 | Expense owner | ออกแบบได้ตอนนี้; implementation หลัง Advance interface คงที่ | Advance, OCR และ Closing design | composite keys, amount confirmation contract, upload relation |
 | DB-08 | OCR owner | raw response/receipt model ตกลง; implementation หลัง document interface คงที่ | Expense/Closing | supporting-data contract, retry/results, ไม่มี balance side effects |
 | DB-09 | Closing owner | design ได้ตอนนี้; implementation หลัง amount/confirmation/closing rules คงที่ | OCR | snapshot contract, finalize transaction, financial invariant evidence |
@@ -705,7 +738,7 @@ expand -> backfill/validate -> constrain/contract ตามข้อมูลจ
 
 ทุก ticket ให้แนบข้อความนี้:
 
-> อ้าง `docs/migration-plans/erbm-database-plan.md`, revision `ERBM-DB-0.2`,
+> อ้าง `docs/migration-plans/erbm-database-plan.md`, revision `ERBM-DB-0.9`,
 > ขอบเขต DB-xx ใช้ชื่อ table/column/type และ dependency ตามเอกสารกลาง
 > ตอบ Dxx ที่เกี่ยวข้องก่อนสร้าง SQL ห้ามเปลี่ยน schema interface แยกจากแผน
 > ส่งคู่ up/down, rationale ของข้อแตกต่างถ้ามี, และ acceptance evidence
@@ -719,14 +752,15 @@ expand -> backfill/validate -> constrain/contract ตามข้อมูลจ
 | ID | สิ่งที่ต้องยืนยัน | ข้อเสนอ/ทางเลือกใน blueprint | กระทบ |
 | --- | --- | --- | --- |
 | D01 | รับชื่อ/type/common audit และ Request/Advance table เดียวหรือไม่ | ใช้ชื่อและ fields ในเอกสาร; requests อยู่ใน advances ตั้งแต่ DRAFT | 0005, 0007, 0009 |
-| D02 | ขนาด/scale ของเงิน, เงินศูนย์/ติดลบ, สกุลเงินและ conversion | NUMERIC(15,2), currency ที่ Advance; ยังไม่ตั้ง THB default หรือ positivity CHECK | ทุก version ใหม่ |
+| D02 | ขนาด/scale ของเงินในโมดูลที่เหลือและเงินศูนย์/ติดลบ | ทุกยอดเป็น THB ยืนยันแล้ว; 0005 ใช้ NUMERIC(15,2) โดยไม่มี currency column; ผู้ใช้ยืนยัน POST Advance ต้องกรอกยอด > 0; ไม่เปลี่ยน amount เดิมหรือเพิ่ม CHECK ครอบโมดูลอื่น | ทุก version ใหม่ |
 | D03 | delete/retention/financial corrections/actor preservation | new financial FKs RESTRICT; ยังไม่เพิ่ม delete API หรือ cascade ใหม่ | ทุก version ใหม่ |
 | D04 | จ่ายครั้งเดียว/หลายครั้ง/บางส่วน และยอดจริงต่างจาก request | proposed 0..1 confirmed disbursement; amount สองแหล่งต้องตกลงความสัมพันธ์ก่อน ACTIVE | 0005 semantics, 0006, 0009 totals |
-| D05 | Closing ใช้สถานะหลัก Advance อะไร; non-ACTIVE อื่น block Advance ใหม่หรือไม่ | เก็บ closing details แยก table; ไม่เพิ่ม status/guard เกิน ACTIVE ที่ยืนยัน | 0005, 0009 |
+| D05 | Closing ใช้สถานะหลัก Advance อะไร; non-ACTIVE อื่น block Advance ใหม่หรือไม่ | ยืนยันว่า ACTIVE เดิมไม่บล็อกการสร้าง DRAFT; เก็บ closing details แยก table และรอ closing rules | 0005, 0009 |
 | D06 | รูปแบบไฟล์/storage, scan ก่อน Expense, OCR statuses/provider/retry/retention และ line items | expense_id nullable, raw JSON + normalized items, extraction ต่อ attempt | 0007, 0008 |
 | D07 | Closing statuses, return/revision behavior, จำนวนคำขอ, evidence เงินคืน, Expense ระหว่าง Closing | รองรับหลาย attempt + snapshots; ไม่ตั้ง default/enum/unique status ที่ยังไม่ยืนยัน | 0009; service ที่เกี่ยวข้อง |
 | D08 | Expense confirmation ใคร/เมื่อไร, แก้ไข/ถอน confirmation/ยกเลิก และ over-budget | nullable confirmation markers + amount audit; ไม่มี Accounting expense approval ที่เดาเพิ่ม | 0007, 0009 |
-| D09 | Project closing กับ Advance ค้าง, fiscal-year/cancellation และ VAT/WHT | ไม่ encode จาก TODO/ชื่อระบบ; ตอบกติกาก่อนเพิ่ม column/constraint | service / schema expansion ที่จะตกลง |
+| D09 | Project closing กับ Advance ค้าง, fiscal-year/cancellation และ VAT/WHT | ผู้ใช้ยืนยัน 17 ต.ค. 2026: สร้าง Advance ไม่ได้เมื่อ Project CLOSED และห้ามปิด Project ถ้ามี Advance ที่ยังไม่ CLOSED ทุกสถานะรวม DRAFT; ตรวจภายใต้ Project lock ใน service ไม่เพิ่ม schema; fiscal-year/cancellation และ VAT/WHT ยังรอตัดสินใจ | Project service; schema expansion เฉพาะเรื่องที่ยังรอตกลง |
+| D11 | จำนวน PM/PC ต่อ Project และ representation | ยืนยัน PM หนึ่งคน/PC ไม่เกินหนึ่งคน; PM/PC ดูแลหลาย Project ได้; nullable projects.pc_user_id FK users RESTRICT + nonunique index แทน join table; POST/PATCH ใช้ pc_user_id เดี่ยว (PATCH omit/null/ID = คง/ลบ/แทนที่); response pc object/null; เฉพาะ PC ที่ได้รับมอบหมายสร้าง Advance ได้; SQL 0003 | Project/Advance |
 | D10 | naming conflict และ template discovery ของ runner | คง sequential convention; จัดการ discovery ก่อน run และจองเลขร่วมกัน | implementation/integration ของทุก version |
 
 เมื่อ review รับบาง Dxx ให้บันทึกคำตอบ/แหล่งที่ยืนยันในแถวนี้และปรับ data dictionary
@@ -759,9 +793,19 @@ go vet ./...
 go build ./cmd/server ./cmd/migrate
 ```
 
-0005 สร้าง schema ตาม blueprint ในไฟล์ SQL แล้ว แต่ยังไม่ได้ apply ฐานจริงหรือเพิ่ม API
-มี integration test `tests/advance_workflow_migration_test.go` สำหรับ default/decimal,
+0003/0005 มี SQL และ GET/POST Advance รวมกฎ PC ไม่เกินหนึ่งคนแล้ว แต่ยังไม่ได้ apply หรือทดสอบบน PostgreSQL จริง
+มี integration test `tests/advance_workflow_migration_test.go` สำหรับ THB โดยไม่มี currency column, default/decimal,
 ACTIVE uniqueness รวม concurrent activation, FK, audit และ down/up preservation
 test นี้ใช้เฉพาะ `ERBM_MIGRATION_TEST_DATABASE_URL` ที่กำหนดให้ฐาน PostgreSQL ทดสอบ
 และสร้าง schema แยก; เมื่อไม่กำหนดจะ skip และไม่อ่าน `.env` หรือใช้ DATABASE_URL ของ app
 การตรวจฐานจริงและ acceptance execution ของโมดูลที่เหลือยังเป็นแผน
+
+บันทึก 16 ตุลาคม 2026: ผู้ใช้ยืนยันรหัส ADV-PRJ001-001 รันแยก Projectตั้งแต่ DRAFT,
+requester คือ PC ผู้สร้าง, ยอดต้องกรอกและมากกว่า 0, Project CLOSED สร้างไม่ได้,
+ACTIVE เดิมไม่บล็อก DRAFT และหนึ่ง Project มี ACTIVE ได้ไม่เกินหนึ่งรายการ
+
+บันทึก revision 0.6: ผู้ใช้แจ้งว่า apply เฉพาะ 0001/0002/0004 และอนุญาตให้แก้ version ที่ยังไม่ apply โดยตรง จึงรวม single-PC ใน 0003 และ codes/counter ใน 0005 พร้อมเอาคู่ delta ที่ยังไม่ใช้ออก ไม่มีการรัน migration หรือแก้ version ที่ผู้ใช้แจ้งว่าใช้แล้ว
+
+บันทึก revision 0.7: ผู้ใช้ยืนยันว่าแต่ละ Project มี PC ได้คนเดียว แต่ PC คนเดียวดูแลหลาย Project ได้ และตกลงให้ CreateProjectRequest ใช้ pc_user_id เป็น ID เดียว จึงปรับเฉพาะ POST contract พร้อม validation และเอกสาร โดยไม่เปลี่ยน PATCH, response หรือ schema
+
+บันทึก revision 0.8 (แทนข้อกำหนด Project ของ 0.7): ผู้ใช้ยืนยันให้ลบ join table และเก็บ nullable `projects.pc_user_id BIGINT` FK users ON DELETE RESTRICT พร้อม nonunique index ใน 0003 ที่ยังไม่ apply; PM หนึ่งคนต่อ Project และ PM/PC ดูแลหลาย Project ได้ ใช้ scalar `pc_user_id` ใน POST/PATCH และ `pc` object/null ใน response; PATCH รองรับไม่ส่ง/ส่ง null/ส่ง ID เพื่อคง/ลบ/แทนที่ตามสิทธิ์เดิม ปรับ blueprint เป็น 17 application tables (มี SQL 8 + เสนอเพิ่ม 9) โดยไม่รัน migration หรือเข้าถึงฐานข้อมูล
