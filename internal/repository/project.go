@@ -27,9 +27,19 @@ func (r *ProjectRepository) WithTx(ctx context.Context, fn func(tx *gorm.DB) err
 	return r.db.WithContext(ctx).Transaction(fn)
 }
 
-// Create inserts a project using GORM's default transaction.
-func (r *ProjectRepository) Create(ctx context.Context, project *model.Project) error {
-	if err := r.db.WithContext(ctx).Create(project).Error; err != nil {
+// NextProjectNumber allocates a number within a calendar year. The UPSERT locks
+// that year's counter row until the caller commits or rolls back creation.
+func (r *ProjectRepository) NextProjectNumber(ctx context.Context, tx *gorm.DB, year int) (int64, error) {
+	var number int64
+	err := tx.WithContext(ctx).Raw(`INSERT INTO project_code_counters (year, last_number) VALUES (?, 1)
+		ON CONFLICT (year) DO UPDATE SET last_number = project_code_counters.last_number + 1
+		RETURNING last_number`, year).Scan(&number).Error
+	return number, err
+}
+
+// Create inserts a project in the same transaction as its code allocation.
+func (r *ProjectRepository) Create(ctx context.Context, tx *gorm.DB, project *model.Project) error {
+	if err := tx.WithContext(ctx).Create(project).Error; err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return dto.ErrProjectCodeExists

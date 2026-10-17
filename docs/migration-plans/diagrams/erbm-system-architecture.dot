@@ -54,7 +54,7 @@ digraph erbmArchitecture {
     fontsize=15;
     color="#9cacbd";
     style=rounded;
-    postgres [shape=cylinder, label="[E/P] PostgreSQL\nExisting: Auth / Employee / Project\nPlanned: Advance / Expense / OCR / Closing\n17 application tables + schema_migrations",
+    postgres [shape=cylinder, label="[E/P] PostgreSQL\nExisting: Auth / Employee / Project\nPlanned: Advance / Expense / OCR / Closing\n18 application tables + schema_migrations",
       fillcolor="#edf5ef", color="#477756"];
     files [shape=folder, label="[P] Document file storage\nexpense_documents stores storage_key\nProvider and retention: D06",
       fillcolor="#fff4e5", color="#b77923", style="filled,dashed"];
@@ -71,7 +71,7 @@ digraph erbmArchitecture {
   }
 
   migrateRunner [label="[E] Migration CLI\ncmd/migrate - pgx\nUp/down SQL and version tracking", fillcolor="#f2f5f8", color="#7e8b99"];
-  legend [shape=plain, label="E = existing in repository\nP = proposed in ERBM-DB-0.8\nE/P = existing layer with planned additions\nArrows = calls or data access; dashed = proposed connection",
+  legend [shape=plain, label="E = existing in repository\nP = proposed in ERBM-DB-0.10\nE/P = existing layer with planned additions\nArrows = calls or data access; dashed = proposed connection",
     fontcolor="#46586b", fontsize=11];
 
   webClient -> router [label="HTTP / JSON"];

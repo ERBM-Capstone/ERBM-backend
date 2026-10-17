@@ -21,6 +21,8 @@ coverage.*
 !/tests/project_review_test.go
 !/tests/project_review_postgres_test.go
 !/tests/project_consistency_test.go
+!/tests/project_code_test.go
+!/tests/project_code_postgres_test.go
 
 # Temporary files and logs
 /tmp/

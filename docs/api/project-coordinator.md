@@ -7,17 +7,30 @@ access to other Projects, so backend membership checks remain in place.
 
 ## API contracts
 
-POST `/api/v1/projects` accepts a single optional `pc_user_id`:
+POST `/api/v1/projects` generates `project_code` on the server and accepts a
+single optional `pc_user_id`:
 
 ```json
 {
-  "project_code": "PRJ001",
   "name": "Project A",
   "budget": "1000.00",
   "pm_user_id": 100,
   "pc_user_id": 25
 }
 ```
+
+The client omits `project_code`. A supplied value is ignored. Responses retain
+`project_code`, for example `PRJ-2026-000001`. The Gregorian year comes from the
+creation timestamp in Asia/Bangkok (UTC+7), and each year starts at 000001.
+The number has a minimum width of six digits and is never truncated. Codes are
+assigned once and cannot be changed through PATCH.
+
+`project_code_counters` stores one counter per year. Allocation uses an atomic
+UPSERT, and the counter and Project insert share a transaction. Concurrent
+requests for the same year serialize on that counter row; a failed transaction
+rolls back both its counter allocation and its Project. Member eligibility
+queries use the same transaction connection. Existing Project codes remain as
+stored, including codes used in historical Advance identifiers.
 
 - ADMIN/PM may omit `pc_user_id` or send null to create an unassigned Project.
 - A positive integer `pc_user_id` assigns that PC, subject to role/account checks.
@@ -106,6 +119,11 @@ while its nonunique index allows the same PC on many Projects.
 There is no coordinator join table. No legacy assignment backfill is needed
 because 0003 is confirmed unapplied. The application's database was not accessed.
 
+The same unapplied migration also creates `project_code_counters` with a `year`
+INTEGER primary key and a positive `last_number` BIGINT. Its down migration
+removes the counter table together with Projects. Code formatting is performed
+by the service; SQL inserts outside the service must still provide project_code.
+
 Down for 0003 drops the Project table and its data. Dependent Advance
 schema must be removed first. The PostgreSQL tests perform these operations only
 inside disposable test schemas, and check that the schema is recreated on up.
@@ -133,3 +151,9 @@ same opt-in disposable database and skip when it is not configured.
 profile lookup failures, permission checks on CLOSED Projects, case-insensitive
 PC null/ID handling, and nil request guards at the service boundary. A nil
 Create/Update request returns BadRequest instead of panicking.
+
+`project_code_test.go` covers HTTP creation without a code, ignoring client
+codes, sequential server-generated responses, allocation failures and rejection
+before allocation. `project_code_postgres_test.go` uses the same disposable
+database setup to cover independent annual counters, rollback, concurrent
+Project creation and Advance identifiers built from generated Project codes.

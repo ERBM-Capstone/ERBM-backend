@@ -38,7 +38,11 @@ func (r *fakeProjectRepo) WithTx(ctx context.Context, fn func(tx *gorm.DB) error
 	return fn(nil)
 }
 
-func (r *fakeProjectRepo) Create(ctx context.Context, project *model.Project) error {
+func (r *fakeProjectRepo) NextProjectNumber(context.Context, *gorm.DB, int) (int64, error) {
+	return r.nextID + 1, nil
+}
+
+func (r *fakeProjectRepo) Create(ctx context.Context, _ *gorm.DB, project *model.Project) error {
 	if r.createErr != nil {
 		return r.createErr
 	}
@@ -131,11 +135,10 @@ func stringPtr(v string) *string { return &v }
 
 func createRequest(pmUserID, pcUserID *int64) *dto.CreateProjectRequest {
 	return &dto.CreateProjectRequest{
-		ProjectCode: " erbm-01 ",
-		Name:        "ERBM Pilot",
-		Budget:      "1000.00",
-		PMUserID:    pmUserID,
-		PCUserID:    pcUserID,
+		Name:     "ERBM Pilot",
+		Budget:   "1000.00",
+		PMUserID: pmUserID,
+		PCUserID: pcUserID,
 	}
 }
 
@@ -156,9 +159,6 @@ func TestProjectCreateByPCAddsCreatorAsSolePC(t *testing.T) {
 	detail, err := svc.Create(context.Background(), 3, "PC", createRequest(int64Ptr(2), nil))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if detail.Project.ProjectCode != "ERBM-01" {
-		t.Errorf("project code = %q, want ERBM-01", detail.Project.ProjectCode)
 	}
 	if detail.Project.PMUserID != 2 {
 		t.Errorf("pm = %d, want 2", detail.Project.PMUserID)

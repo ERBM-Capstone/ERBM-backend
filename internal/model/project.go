@@ -12,6 +12,7 @@ const (
 
 // Project groups the funds of a project. Budget is stored as a decimal string
 // so the NUMERIC value from PostgreSQL is never rounded through float64.
+// ProjectCode is assigned once as PRJ-{Gregorian year in Asia/Bangkok}-{number}.
 type Project struct {
 	ID          int64
 	ProjectCode string

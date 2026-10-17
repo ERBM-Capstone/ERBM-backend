@@ -28,6 +28,16 @@ CREATE INDEX idx_projects_pm_user_id ON projects (pm_user_id);
 CREATE INDEX idx_projects_pc_user_id ON projects (pc_user_id);
 CREATE INDEX idx_projects_status ON projects (status);
 
+-- Allocation and Project insertion share a transaction. Each Gregorian year
+-- in Asia/Bangkok has an independent sequence starting at 1.
+CREATE TABLE project_code_counters (
+    year        INTEGER PRIMARY KEY,
+    last_number BIGINT NOT NULL CHECK (last_number > 0)
+);
+
+COMMENT ON COLUMN projects.project_code IS
+    'Immutable server-generated code: PRJ-{Gregorian year in Asia/Bangkok}-{number, minimum 6 digits}';
+
 COMMENT ON COLUMN projects.budget IS 'reference only, funds may exceed it';
 COMMENT ON COLUMN projects.status IS 'ACTIVE, CLOSED (closing is permanent)';
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,9 +26,12 @@ const (
 // budgetPattern accepts up to 13 integer digits and 2 decimals to fit NUMERIC(15,2).
 var budgetPattern = regexp.MustCompile(`^\d{1,13}(\.\d{1,2})?$`)
 
+var projectCodeLocation = time.FixedZone("Asia/Bangkok", 7*60*60)
+
 type projectRepository interface {
 	WithTx(ctx context.Context, fn func(tx *gorm.DB) error) error
-	Create(ctx context.Context, project *model.Project) error
+	NextProjectNumber(ctx context.Context, tx *gorm.DB, year int) (int64, error)
+	Create(ctx context.Context, tx *gorm.DB, project *model.Project) error
 	GetByID(ctx context.Context, id int64) (*model.Project, error)
 	GetByIDForUpdate(ctx context.Context, tx *gorm.DB, id int64) (*model.Project, error)
 	List(ctx context.Context, filter model.ProjectFilter) ([]*model.Project, int64, error)
@@ -58,21 +62,41 @@ func (s *ProjectService) Create(
 	if userID <= 0 {
 		return nil, dto.ErrUnauthorized
 	}
+
 	if req == nil {
 		return nil, dto.ErrBadRequest
 	}
 
 	project, err := prepareProjectForCreate(userID, role, req)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.checkMembers(ctx, nil, &project.PMUserID, project.PCUserID); err != nil {
-		return nil, err
-	}
 
-	err = s.repo.Create(ctx, project)
 	if err != nil {
-		if errors.Is(err, dto.ErrProjectCodeExists) {
+		return nil, err
+	}
+	err = s.repo.WithTx(ctx, func(tx *gorm.DB) error {
+		if err := s.checkMembers(ctx, tx, &project.PMUserID, project.PCUserID); err != nil {
+
+			return err
+		}
+		now := time.Now()
+		year := now.In(projectCodeLocation).Year()
+		number, err := s.repo.NextProjectNumber(ctx, tx, year)
+		if err != nil {
+			return err
+		}
+		if number <= 0 {
+			return dto.ErrInternalServer
+		}
+		project.ProjectCode = fmt.Sprintf("PRJ-%04d-%06d", year, number)
+		project.CreatedAt, project.UpdatedAt = now, now
+		return s.repo.Create(ctx, tx, project)
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, dto.ErrInvalidProjectManager):
+			return nil, dto.ErrInvalidProjectManager
+		case errors.Is(err, dto.ErrInvalidProjectCoordinator):
+			return nil, dto.ErrInvalidProjectCoordinator
+		case errors.Is(err, dto.ErrProjectCodeExists):
 			return nil, dto.ErrProjectCodeExists
 		}
 		return nil, dto.ErrInternalServer
@@ -83,10 +107,6 @@ func (s *ProjectService) Create(
 
 // prepareProjectForCreate validates input and builds the initial Project.
 func prepareProjectForCreate(userID int64, role string, req *dto.CreateProjectRequest) (*model.Project, error) {
-	code := strings.ToUpper(strings.TrimSpace(req.ProjectCode))
-	if code == "" {
-		return nil, dto.ErrBadRequest
-	}
 	name, err := normalizeProjectName(req.Name)
 	if err != nil {
 		return nil, err
@@ -111,11 +131,11 @@ func prepareProjectForCreate(userID int64, role string, req *dto.CreateProjectRe
 
 	pmUserID, pcUserID, err := resolveProjectCreateMembers(userID, role, req.PMUserID, req.PCUserID)
 	if err != nil {
+
 		return nil, err
 	}
 
 	return &model.Project{
-		ProjectCode: code,
 		Name:        name,
 		Description: req.Description,
 		Budget:      budget,
@@ -139,6 +159,7 @@ func resolveProjectCreateMembers(userID int64, role string, pmUserID, pcUserID *
 		if pmUserID == nil {
 			return 0, nil, dto.ErrBadRequest
 		}
+		fmt.Println("PM User ID:", *pmUserID)
 		if role == rolePC {
 			if pcUserID != nil && *pcUserID != userID {
 				return 0, nil, dto.ErrBadRequest

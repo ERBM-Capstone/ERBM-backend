@@ -1,9 +1,9 @@
 # ERBM — แผนฐานข้อมูลกลางและการแบ่ง migration
 
-รหัสแผน: `ERBM-DB-0.9` · วันที่: 17 ตุลาคม 2026
+รหัสแผน: `ERBM-DB-0.10` · วันที่: 18 ตุลาคม 2026
 
 เอกสารนี้เป็น schema blueprint ชุดเดียวสำหรับแจกงานสร้าง migration และ backend
-ครอบคลุม **17 application tables: มี SQL แล้ว 8 + เสนอเพิ่ม 9** และ
+ครอบคลุม **18 application tables: มี SQL แล้ว 9 + เสนอเพิ่ม 9** และ
 `schema_migrations` อีก 1 system table ทุกงานควรอ้างรหัสแผนนี้และชื่อ table/column
 ในเอกสารเดียวกัน ไม่ออกแบบชื่อหรือความสัมพันธ์ใหม่แยกกันในแต่ละ ticket
 
@@ -49,6 +49,7 @@ fiscal-year policy และ MD digital signature ยังไม่มี requi
 | `employees` | E | ข้อมูลพนักงาน | 0001 + 0002 |
 | `users` | E | บัญชีและ credentials | 0001 + 0002 |
 | `projects` | E | โครงการ, PM หนึ่งคน และ PC ได้ไม่เกินหนึ่งคนผ่าน nullable pc_user_id | 0003 |
+| `project_code_counters` | E (SQL) | เลขลำดับรหัส Project แยกตามปี ค.ศ. เวลาไทย เริ่มใหม่ทุกปี | 0003 |
 | `account_activation_tokens` | E | token hash สำหรับเปิดใช้งานบัญชี | 0004 |
 | `advances` | E (SQL) | Advance Request, รหัสถาวร และสถานะหลัก; มี GET/POST แล้ว | 0005 |
 | `advance_workflow_events` | E (SQL) | ประวัติ Advance; POST บันทึก CREATE พร้อม DRAFT ใน transaction | 0005 |
@@ -92,7 +93,7 @@ Architecture นี้มี Go backend หนึ่ง application process แ�
   และประสาน transaction; Advance มี GET/POST แล้ว ส่วน review/Disbursement/Expense/OCR/Closing ยังเป็น P
 - **Repository:** เป็นทางเข้า SQL ของ application ผ่าน GORM และ context;
   service ส่ง transaction/lock ที่ใช้ร่วมกันในการเปลี่ยนข้อมูลการเงินและ audit
-- **PostgreSQL:** รวม 17 application tables ใน data dictionary นี้ และ
+- **PostgreSQL:** รวม 18 application tables ใน data dictionary นี้ และ
   `schema_migrations`; grouped modules ใช้ฐานเดียวกัน
 - **SMTP:** มี `mail.Sender` แล้ว ใช้ส่ง activation หลัง database commit
 - **File storage / OCR:** adapter, provider, retention และ execution mode เป็น P
@@ -281,7 +282,7 @@ Index เดิม: `idx_users_status(status)`; ยังไม่มี session
 | Column | Type | Nullable | Default / key |
 | --- | --- | --- | --- |
 | `id` | BIGSERIAL | ไม่ | PK |
-| `project_code` | VARCHAR(50) | ไม่ | UNIQUE index บน UPPER(project_code) |
+| `project_code` | VARCHAR(50) | ไม่ | Service สร้าง PRJ-{ปี ค.ศ. เวลาไทย}-{เลขอย่างน้อย 6 หลัก}; UNIQUE index บน UPPER(project_code) |
 | `name` | VARCHAR(255) | ไม่ | ไม่มี |
 | `description` | TEXT | ได้ | NULL |
 | `budget` | NUMERIC(15,2) | ไม่ | CHECK budget > 0 |
@@ -312,6 +313,20 @@ API response ใช้ `pc` object หรือ null เช่นเดียว
 Go ใช้ `Project.PCUserID *int64` และ `ProjectDetail.PC *ProjectMember`
 PM/PC ที่มอบหมายต้องเป็นบัญชี ACTIVE และมีบทบาทตรงตามหน้าที่
 เฉพาะ PC ที่ได้รับมอบหมายสร้าง Advance ได้
+
+### `project_code_counters`
+
+| Column | Type | Nullable | Default / key |
+| --- | --- | --- | --- |
+| `year` | INTEGER | ไม่ | PK; ปี ค.ศ. ตาม Asia/Bangkok |
+| `last_number` | BIGINT | ไม่ | CHECK last_number > 0 |
+
+POST Project ไม่รับรหัสจากผู้ใช้; service สร้าง `PRJ-2026-000001` และเริ่มเลขใหม่
+ทุกปีด้วย UPSERT บน counter ของปีนั้น การตรวจสมาชิก การจองเลข และ INSERT Project
+ใช้ transaction เดียวกันเพื่อกันรหัสซ้ำและ rollback พร้อมกันเมื่อสร้างไม่สำเร็จ
+ปีของรหัสอ้างอิง `created_at` ในเวลาไทย รหัสอยู่ใน response และแก้ผ่าน PATCH ไม่ได้
+เลขมีอย่างน้อย 6 หลัก ไม่ตัดทิ้งเมื่อเกิน 999999; ไม่เปลี่ยนรหัสที่เก็บไว้เดิม
+รวม table นี้ใน 0003 ที่ผู้ใช้ยืนยันว่ายังไม่ apply; ไม่มี FK ไป Project รายตัว
 
 ### `account_activation_tokens`
 
@@ -621,7 +636,7 @@ Expense/Closing ของ Advance นั้น ผ่าน repository ที่
 
 | Version | Tables / integrity ที่ต้องมาพร้อมกัน | Dependency | Readiness ของ SQL | ผู้รับผิดชอบ / reviewer |
 | --- | --- | --- | --- | --- |
-| `0003_create_projects` | projects + required PM FK + nullable PC FK + nonunique indexes | users เดิม | SQL corrected in place; ผู้ใช้ยืนยันว่ายังไม่ apply | ผู้ทำ Project / integration reviewer |
+| `0003_create_projects` | projects + required PM FK + nullable PC FK + nonunique indexes + project_code_counters รายปี | users เดิม | SQL corrected in place; ผู้ใช้ยืนยันว่ายังไม่ apply | ผู้ทำ Project / integration reviewer |
 | `0005_create_advance_workflow` | advances + codes/counters + events + one-ACTIVE partial unique + FKs/indexes | users/projects เดิม | SQL created; ยังไม่ apply/test บน PostgreSQL; workflow ที่ค้างยังไม่ encode | ผู้ทำ Advance / ผู้ทำ Expense |
 | `0006_create_advance_disbursements` | advance_disbursements + FK/unique ตาม D04 | 0005 | provisional: D02–D04 | ผู้ทำ Advance / ผู้ทำ Closing |
 | `0007_create_expense_records` | expenses + expense_audit_events + expense_documents + composite FK/keys | 0005 | provisional: D01–D03, D06, D08 | ผู้ทำ Expense / ผู้ทำ Advance |
@@ -738,7 +753,7 @@ expand -> backfill/validate -> constrain/contract ตามข้อมูลจ
 
 ทุก ticket ให้แนบข้อความนี้:
 
-> อ้าง `docs/migration-plans/erbm-database-plan.md`, revision `ERBM-DB-0.9`,
+> อ้าง `docs/migration-plans/erbm-database-plan.md`, revision `ERBM-DB-0.10`,
 > ขอบเขต DB-xx ใช้ชื่อ table/column/type และ dependency ตามเอกสารกลาง
 > ตอบ Dxx ที่เกี่ยวข้องก่อนสร้าง SQL ห้ามเปลี่ยน schema interface แยกจากแผน
 > ส่งคู่ up/down, rationale ของข้อแตกต่างถ้ามี, และ acceptance evidence
@@ -762,6 +777,7 @@ expand -> backfill/validate -> constrain/contract ตามข้อมูลจ
 | D09 | Project closing กับ Advance ค้าง, fiscal-year/cancellation และ VAT/WHT | ผู้ใช้ยืนยัน 17 ต.ค. 2026: สร้าง Advance ไม่ได้เมื่อ Project CLOSED และห้ามปิด Project ถ้ามี Advance ที่ยังไม่ CLOSED ทุกสถานะรวม DRAFT; ตรวจภายใต้ Project lock ใน service ไม่เพิ่ม schema; fiscal-year/cancellation และ VAT/WHT ยังรอตัดสินใจ | Project service; schema expansion เฉพาะเรื่องที่ยังรอตกลง |
 | D11 | จำนวน PM/PC ต่อ Project และ representation | ยืนยัน PM หนึ่งคน/PC ไม่เกินหนึ่งคน; PM/PC ดูแลหลาย Project ได้; nullable projects.pc_user_id FK users RESTRICT + nonunique index แทน join table; POST/PATCH ใช้ pc_user_id เดี่ยว (PATCH omit/null/ID = คง/ลบ/แทนที่); response pc object/null; เฉพาะ PC ที่ได้รับมอบหมายสร้าง Advance ได้; SQL 0003 | Project/Advance |
 | D10 | naming conflict และ template discovery ของ runner | คง sequential convention; จัดการ discovery ก่อน run และจองเลขร่วมกัน | implementation/integration ของทุก version |
+| D12 | Project code อัตโนมัติ | ผู้ใช้ยืนยัน 18 ต.ค. 2026: PRJ-2026-000001 ไม่ต้องกรอก; ปี ค.ศ. ตามเวลาไทย เริ่มเลขใหม่ทุกปี; counter ใน 0003 ที่ยังไม่ apply; transaction เดียวกับการสร้าง Project | Project API / 0003 / รหัส Advance |
 
 เมื่อ review รับบาง Dxx ให้บันทึกคำตอบ/แหล่งที่ยืนยันในแถวนี้และปรับ data dictionary
 พร้อมกัน version ที่ไม่ติด Dxx อื่นจึงเลื่อนเป็น ready ได้ ไม่ต้องรอคำตอบทั้งระบบ
@@ -809,3 +825,5 @@ ACTIVE เดิมไม่บล็อก DRAFT และหนึ่ง Proje
 บันทึก revision 0.7: ผู้ใช้ยืนยันว่าแต่ละ Project มี PC ได้คนเดียว แต่ PC คนเดียวดูแลหลาย Project ได้ และตกลงให้ CreateProjectRequest ใช้ pc_user_id เป็น ID เดียว จึงปรับเฉพาะ POST contract พร้อม validation และเอกสาร โดยไม่เปลี่ยน PATCH, response หรือ schema
 
 บันทึก revision 0.8 (แทนข้อกำหนด Project ของ 0.7): ผู้ใช้ยืนยันให้ลบ join table และเก็บ nullable `projects.pc_user_id BIGINT` FK users ON DELETE RESTRICT พร้อม nonunique index ใน 0003 ที่ยังไม่ apply; PM หนึ่งคนต่อ Project และ PM/PC ดูแลหลาย Project ได้ ใช้ scalar `pc_user_id` ใน POST/PATCH และ `pc` object/null ใน response; PATCH รองรับไม่ส่ง/ส่ง null/ส่ง ID เพื่อคง/ลบ/แทนที่ตามสิทธิ์เดิม ปรับ blueprint เป็น 17 application tables (มี SQL 8 + เสนอเพิ่ม 9) โดยไม่รัน migration หรือเข้าถึงฐานข้อมูล
+
+บันทึก revision 0.10: เพิ่ม project_code_counters ใน 0003 และให้ backend ออกรหัส Project อัตโนมัติ PRJ-{ปี ค.ศ. เวลาไทย}-{เลขอย่างน้อย 6 หลัก} เริ่ม 000001 ทุกปี; POST ไม่ต้องส่ง project_code, response คง field เดิม; จองเลขและสร้าง Project ใน transaction เดียวกัน ปรับจำนวนเป็น 18 application tables (มี SQL 9 + เสนอเพิ่ม 9) โดยไม่รัน migration กับฐาน application
