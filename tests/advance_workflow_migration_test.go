@@ -73,8 +73,8 @@ func TestAdvanceWorkflowMigration(t *testing.T) {
 	for _, name := range []string{
 		"0001_create_auth_tables.up.sql",
 		"0002_add_employee_user_audit_fields.up.sql",
-		"0003_create_projects.up.sql",
 		"0004_create_account_activation_tokens.up.sql",
+		"0003_create_projects.up.sql",
 	} {
 		if err := applySQL(readMigration(name)); err != nil {
 			t.Fatalf("apply baseline migration %s: %v", name, err)
@@ -112,8 +112,9 @@ func TestAdvanceWorkflowMigration(t *testing.T) {
 		return id
 	}
 	const insertAdvance = `INSERT INTO advances
-		(project_id, purpose, amount, currency_code, status, created_by, updated_by)
-		VALUES ($1, 'Migration fixture', $2, 'THB', $3, $4, $4) RETURNING id`
+		(advance_code, project_id, purpose, amount, status, created_by, updated_by)
+		VALUES ('MIG-' || nextval(pg_get_serial_sequence('advances','id'))::text,
+		$1, 'Migration fixture', $2, $3, $4, $4) RETURNING id`
 	expectSQLState := func(t *testing.T, err error, state string) {
 		t.Helper()
 		var pgError *pgconn.PgError
@@ -122,18 +123,29 @@ func TestAdvanceWorkflowMigration(t *testing.T) {
 		}
 	}
 
-	t.Run("draft defaults and exact monetary amount", func(t *testing.T) {
-		var status, amount, currency string
+	t.Run("THB advances need no currency field and preserve exact money", func(t *testing.T) {
+		var hasCurrencyColumn bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'advances' AND column_name = 'currency_code'
+		)`).Scan(&hasCurrencyColumn); err != nil {
+			t.Fatal(err)
+		}
+		if hasCurrencyColumn {
+			t.Fatal("THB-only advances must not have a currency_code column")
+		}
+		var status, amount string
 		err := pool.QueryRow(ctx, `INSERT INTO advances
-			(project_id, purpose, amount, currency_code, created_by, updated_by)
-			VALUES ($1, 'Exact monetary fixture', '9999999999999.99', 'THB', $2, $2)
-			RETURNING status, amount::text, currency_code`, newProject(), actorID).
-			Scan(&status, &amount, &currency)
+			(advance_code, project_id, purpose, amount, created_by, updated_by)
+			VALUES ('MIG-EXACT', $1, 'Exact monetary fixture', '9999999999999.99', $2, $2)
+			RETURNING status, amount::text`, newProject(), actorID).
+			Scan(&status, &amount)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if status != "DRAFT" || amount != "9999999999999.99" || currency != "THB" {
-			t.Fatalf("stored values = %q, %q, %q", status, amount, currency)
+		if status != "DRAFT" || amount != "9999999999999.99" {
+			t.Fatalf("stored values = %q, %q", status, amount)
 		}
 	})
 
@@ -150,6 +162,16 @@ func TestAdvanceWorkflowMigration(t *testing.T) {
 		if _, err := pool.Exec(ctx, insertAdvance, newProject(), "100.00", "ACTIVE", actorID); err != nil {
 			t.Fatalf("active advance in another project: %v", err)
 		}
+	})
+
+	t.Run("advance codes and counter integrity are present from creation", func(t *testing.T) {
+		projectID := newProject()
+		_, err := pool.Exec(ctx, `INSERT INTO advances(project_id,purpose,amount,created_by,updated_by) VALUES ($1,'Missing code',1,$2,$2)`, projectID, actorID)
+		expectSQLState(t, err, "23502")
+		_, err = pool.Exec(ctx, `INSERT INTO project_advance_counters(project_id,last_number) VALUES ($1,0)`, projectID)
+		expectSQLState(t, err, "23514")
+		_, err = pool.Exec(ctx, `INSERT INTO project_advance_counters(project_id,last_number) VALUES (0,1)`)
+		expectSQLState(t, err, "23503")
 	})
 
 	t.Run("concurrent activation leaves one active advance", func(t *testing.T) {
@@ -238,11 +260,11 @@ func TestAdvanceWorkflowMigration(t *testing.T) {
 		if err := pool.QueryRow(ctx, "SELECT count(*) FROM projects").Scan(&count); err != nil || count == 0 {
 			t.Fatalf("baseline projects after down: count=%d, error=%v", count, err)
 		}
-		var advancesTable, eventsTable *string
-		if err := pool.QueryRow(ctx, "SELECT to_regclass('advances')::text, to_regclass('advance_workflow_events')::text").Scan(&advancesTable, &eventsTable); err != nil {
+		var advancesTable, eventsTable, countersTable *string
+		if err := pool.QueryRow(ctx, "SELECT to_regclass('advances')::text, to_regclass('advance_workflow_events')::text, to_regclass('project_advance_counters')::text").Scan(&advancesTable, &eventsTable, &countersTable); err != nil {
 			t.Fatal(err)
 		}
-		if advancesTable != nil || eventsTable != nil {
+		if advancesTable != nil || eventsTable != nil || countersTable != nil {
 			t.Fatal("advance workflow tables remain after down")
 		}
 		if err := applySQL(upSQL); err != nil {

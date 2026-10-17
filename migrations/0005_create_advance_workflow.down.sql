@@ -2,3 +2,4 @@
 -- restore their data. Roll back dependent later migrations before this one.
 DROP TABLE IF EXISTS advance_workflow_events;
 DROP TABLE IF EXISTS advances;
+DROP TABLE IF EXISTS project_advance_counters;
