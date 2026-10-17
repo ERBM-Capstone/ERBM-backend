@@ -7,6 +7,7 @@ import (
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/pkg/pagination"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,13 +30,13 @@ func NewProjectHandler(svc projectService) *ProjectHandler {
 
 // Create godoc
 // @Summary      Create project
-// @Description  Creates a project. ADMIN and PC must send pm_user_id. A PM who creates a project becomes its PM, and a PC who creates a project is added to its PCs. budget is a decimal string such as "1000.00".
+// @Description  Creates a project with a server-generated project_code: PRJ-{Gregorian year in Asia/Bangkok}-{number, minimum 6 digits}, starting at 000001 each year. Clients do not send project_code; a supplied value is ignored. A project has at most one PC. Optional pc_user_id accepts one positive user ID; the same PC may coordinate multiple projects. ADMIN and PC must send pm_user_id. A PM creator becomes its PM; a PC creator becomes its sole PC and cannot assign another PC at creation. budget is a decimal string such as "1000.00".
 // @Tags         projects
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body      dto.CreateProjectRequest  true  "Create project payload"
-// @Success      201   {object}  dto.BaseResponse
+// @Success      201   {object}  dto.BaseResponse{data=dto.ProjectResponse}
 // @Failure      400   {object}  dto.BaseResponse
 // @Failure      401   {object}  dto.BaseResponse
 // @Failure      403   {object}  dto.BaseResponse
@@ -74,7 +75,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 // @Param        page_size query  int     false  "Items per page"               minimum(1) maximum(100)
 // @Param        q         query  string  false  "Search project code or name"
 // @Param        status    query  string  false  "Project status"               Enums(ACTIVE, CLOSED)
-// @Success      200       {object} dto.BaseResponse
+// @Success      200       {object} dto.BaseResponse{data=[]dto.ProjectResponse}
 // @Failure      400       {object} dto.BaseResponse
 // @Failure      401       {object} dto.BaseResponse
 // @Failure      403       {object} dto.BaseResponse
@@ -93,14 +94,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 		return
 	}
 
-	page := query.Page
-	if page == 0 {
-		page = 1
-	}
-	pageSize := query.PageSize
-	if pageSize == 0 {
-		pageSize = 20
-	}
+	page, pageSize := pagination.WithDefaults(query.Page, query.PageSize)
 
 	projects, total, err := h.service.List(c.Request.Context(), userID, role, model.ProjectFilter{
 		Query:    query.Q,
@@ -127,12 +121,12 @@ func (h *ProjectHandler) List(c *gin.Context) {
 
 // GetByID godoc
 // @Summary      Get project
-// @Description  Returns a single project with its PM and PCs. PM and PC can only open projects they belong to.
+// @Description  Returns a single project with its PM and an assigned pc object or null. PM and PC can only open projects they belong to.
 // @Tags         projects
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id   path      int  true  "Project ID"  minimum(1)
-// @Success      200  {object}  dto.BaseResponse
+// @Success      200  {object}  dto.BaseResponse{data=dto.ProjectResponse}
 // @Failure      400  {object}  dto.BaseResponse
 // @Failure      401  {object}  dto.BaseResponse
 // @Failure      403  {object}  dto.BaseResponse
@@ -163,14 +157,14 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 
 // Update godoc
 // @Summary      Update project
-// @Description  Partially updates a project. ADMIN and the project's PM can change every field; a PC of the project can only change name and description. Only the project's PM can close it by sending status "CLOSED", and a closed project cannot be changed.
+// @Description  Partially updates a project. Omit pc_user_id to keep its PC, send a positive user ID to replace it, or null to remove it. ADMIN and the project's PM can edit fields and assignments; the assigned PC can only change name and description. Only the project's PM can close it by sending status "CLOSED". Closing returns 409 if any Advance in this Project is not CLOSED, including DRAFT. A closed project cannot be changed.
 // @Tags         projects
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id    path      int                       true  "Project ID"  minimum(1)
 // @Param        body  body      dto.UpdateProjectRequest  true  "Project update payload"
-// @Success      200   {object}  dto.BaseResponse
+// @Success      200   {object}  dto.BaseResponse{data=dto.ProjectResponse}
 // @Failure      400   {object}  dto.BaseResponse
 // @Failure      401   {object}  dto.BaseResponse
 // @Failure      403   {object}  dto.BaseResponse

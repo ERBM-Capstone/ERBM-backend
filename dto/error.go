@@ -23,11 +23,12 @@ var (
 	ErrActivationEmailDelivery    = errors.New("activation email could not be delivered")
 
 	// Project resource
-	ErrProjectNotFound           = errors.New("project not found")
-	ErrProjectCodeExists         = errors.New("project code already exists")
-	ErrProjectClosed             = errors.New("project is closed")
-	ErrInvalidProjectManager     = errors.New("pm must be an active user with the PM role")
-	ErrInvalidProjectCoordinator = errors.New("pc must be an active user with the PC role")
+	ErrProjectNotFound            = errors.New("project not found")
+	ErrProjectCodeExists          = errors.New("project code already exists")
+	ErrProjectClosed              = errors.New("project is closed")
+	ErrProjectHasUnclosedAdvances = errors.New("project has advances that are not CLOSED")
+	ErrInvalidProjectManager      = errors.New("pm must be an active user with the PM role")
+	ErrInvalidProjectCoordinator  = errors.New("pc must be an active user with the PC role")
 
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
@@ -65,6 +66,7 @@ var ErrorStatusMap = map[error]int{
 	ErrProjectNotFound:            http.StatusNotFound,
 	ErrProjectCodeExists:          http.StatusConflict,
 	ErrProjectClosed:              http.StatusConflict,
+	ErrProjectHasUnclosedAdvances: http.StatusConflict,
 	ErrInvalidProjectManager:      http.StatusBadRequest,
 	ErrInvalidProjectCoordinator:  http.StatusBadRequest,
 }

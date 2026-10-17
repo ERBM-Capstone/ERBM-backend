@@ -10,6 +10,19 @@
 coverage.*
 /tests/*
 !/tests/activation_service_test.go
+!/tests/advance_workflow_migration_test.go
+!/tests/advance_list_test.go
+!/tests/advance_repository_test.go
+!/tests/advance_create_test.go
+!/tests/advance_create_postgres_test.go
+!/tests/pagination_response_test.go
+!/tests/project_single_coordinator_test.go
+!/tests/project_single_coordinator_postgres_test.go
+!/tests/project_review_test.go
+!/tests/project_review_postgres_test.go
+!/tests/project_consistency_test.go
+!/tests/project_code_test.go
+!/tests/project_code_postgres_test.go
 
 # Temporary files and logs
 /tmp/

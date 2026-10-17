@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// ProjectRepository handles database operations for projects and their PCs.
+// ProjectRepository handles database operations for projects and their assigned PC.
 type ProjectRepository struct {
 	db *gorm.DB
 }
@@ -27,7 +27,17 @@ func (r *ProjectRepository) WithTx(ctx context.Context, fn func(tx *gorm.DB) err
 	return r.db.WithContext(ctx).Transaction(fn)
 }
 
-// Create inserts a project using the caller's transaction.
+// NextProjectNumber allocates a number within a calendar year. The UPSERT locks
+// that year's counter row until the caller commits or rolls back creation.
+func (r *ProjectRepository) NextProjectNumber(ctx context.Context, tx *gorm.DB, year int) (int64, error) {
+	var number int64
+	err := tx.WithContext(ctx).Raw(`INSERT INTO project_code_counters (year, last_number) VALUES (?, 1)
+		ON CONFLICT (year) DO UPDATE SET last_number = project_code_counters.last_number + 1
+		RETURNING last_number`, year).Scan(&number).Error
+	return number, err
+}
+
+// Create inserts a project in the same transaction as its code allocation.
 func (r *ProjectRepository) Create(ctx context.Context, tx *gorm.DB, project *model.Project) error {
 	if err := tx.WithContext(ctx).Create(project).Error; err != nil {
 		var pgErr *pgconn.PgError
@@ -37,36 +47,6 @@ func (r *ProjectRepository) Create(ctx context.Context, tx *gorm.DB, project *mo
 		return err
 	}
 	return nil
-}
-
-// ReplaceCoordinators removes the current PCs of a project and inserts userIDs.
-func (r *ProjectRepository) ReplaceCoordinators(
-	ctx context.Context,
-	tx *gorm.DB,
-	projectID int64,
-	userIDs []int64,
-	actorID int64,
-) error {
-	if err := tx.WithContext(ctx).
-		Where("project_id = ?", projectID).
-		Delete(&model.ProjectCoordinator{}).Error; err != nil {
-		return err
-	}
-
-	if len(userIDs) == 0 {
-		return nil
-	}
-
-	coordinators := make([]model.ProjectCoordinator, 0, len(userIDs))
-	for _, userID := range userIDs {
-		coordinators = append(coordinators, model.ProjectCoordinator{
-			ProjectID: projectID,
-			UserID:    userID,
-			CreatedBy: &actorID,
-		})
-	}
-
-	return tx.WithContext(ctx).Create(&coordinators).Error
 }
 
 func (r *ProjectRepository) GetByID(ctx context.Context, id int64) (*model.Project, error) {
@@ -104,7 +84,7 @@ func (r *ProjectRepository) List(ctx context.Context, filter model.ProjectFilter
 
 	if filter.MemberUserID != nil {
 		db = db.Where(
-			"pm_user_id = ? OR id IN (SELECT project_id FROM project_coordinators WHERE user_id = ?)",
+			"pm_user_id = ? OR pc_user_id = ?",
 			*filter.MemberUserID, *filter.MemberUserID,
 		)
 	}
@@ -116,6 +96,8 @@ func (r *ProjectRepository) List(ctx context.Context, filter model.ProjectFilter
 		db = db.Where("(project_code ILIKE ? OR name ILIKE ?)", like, like)
 	}
 
+	// Count and page selection share filters, but not execution state.
+	db = db.Session(&gorm.Session{})
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -135,8 +117,8 @@ func (r *ProjectRepository) List(ctx context.Context, filter model.ProjectFilter
 func (r *ProjectRepository) IsCoordinator(ctx context.Context, projectID int64, userID int64) (bool, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).
-		Model(&model.ProjectCoordinator{}).
-		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Model(&model.Project{}).
+		Where("id = ? AND pc_user_id = ?", projectID, userID).
 		Count(&count).Error; err != nil {
 		return false, err
 	}
@@ -152,13 +134,16 @@ func (r *ProjectRepository) Update(ctx context.Context, tx *gorm.DB, id int64, u
 
 // FindAssignableUsers returns the role and account status of the given users.
 // Users that do not exist are simply missing from the result.
-func (r *ProjectRepository) FindAssignableUsers(ctx context.Context, userIDs []int64) ([]model.AssignableUser, error) {
+func (r *ProjectRepository) FindAssignableUsers(ctx context.Context, tx *gorm.DB, userIDs []int64) ([]model.AssignableUser, error) {
 	var users []model.AssignableUser
 	if len(userIDs) == 0 {
 		return users, nil
 	}
 
-	err := r.db.WithContext(ctx).
+	if tx == nil {
+		tx = r.db
+	}
+	err := tx.WithContext(ctx).
 		Table("users AS u").
 		Select("u.id AS user_id, r.code AS role_code, u.status").
 		Joins("JOIN roles AS r ON r.id = u.role_id").
@@ -167,37 +152,32 @@ func (r *ProjectRepository) FindAssignableUsers(ctx context.Context, userIDs []i
 	return users, err
 }
 
-// ListManagers returns the PM of each given project.
-func (r *ProjectRepository) ListManagers(ctx context.Context, projectIDs []int64) ([]model.ProjectMember, error) {
-	var members []model.ProjectMember
-	if len(projectIDs) == 0 {
-		return members, nil
+// HasUnclosedAdvances must run while the caller holds the Project row lock.
+// Every status other than CLOSED blocks Project closing, including DRAFT.
+func (r *ProjectRepository) HasUnclosedAdvances(ctx context.Context, tx *gorm.DB, projectID int64) (bool, error) {
+	var advance model.Advance
+	err := tx.WithContext(ctx).Select("id").
+		Where("project_id = ? AND status <> ?", projectID, model.AdvanceStatusClosed).
+		Take(&advance).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
 	}
-
-	err := r.db.WithContext(ctx).
-		Table("projects AS p").
-		Select("p.id AS project_id, u.id AS user_id, e.first_name, e.last_name, u.email").
-		Joins("JOIN users AS u ON u.id = p.pm_user_id").
-		Joins("JOIN employees AS e ON e.id = u.employee_id").
-		Where("p.id IN ?", projectIDs).
-		Scan(&members).Error
-	return members, err
+	return err == nil, err
 }
 
-// ListCoordinators returns the PCs of each given project.
-func (r *ProjectRepository) ListCoordinators(ctx context.Context, projectIDs []int64) ([]model.ProjectMember, error) {
-	var members []model.ProjectMember
-	if len(projectIDs) == 0 {
+// GetMembersByUserIDs loads PM/PC profiles using the assignments already read
+// from Projects, without re-reading assignments that may have since changed.
+func (r *ProjectRepository) GetMembersByUserIDs(ctx context.Context, userIDs []int64) ([]model.ProjectUserSummary, error) {
+	members := make([]model.ProjectUserSummary, 0)
+	if len(userIDs) == 0 {
 		return members, nil
 	}
 
 	err := r.db.WithContext(ctx).
-		Table("project_coordinators AS pc").
-		Select("pc.project_id, u.id AS user_id, e.first_name, e.last_name, u.email").
-		Joins("JOIN users AS u ON u.id = pc.user_id").
+		Table("users AS u").
+		Select("u.id AS user_id, e.first_name, e.last_name, u.email").
 		Joins("JOIN employees AS e ON e.id = u.employee_id").
-		Where("pc.project_id IN ?", projectIDs).
-		Order("pc.created_at ASC, u.id ASC").
-		Scan(&members).Error
+		Where("u.id IN ?", userIDs).
+		Find(&members).Error
 	return members, err
 }

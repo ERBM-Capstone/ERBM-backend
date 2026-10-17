@@ -1,0 +1,4 @@
+interface:
+  display_name: "ERBM Migration Plan"
+  short_description: "Plan migration versions and developer assignments"
+  default_prompt: "Use $migration-plan and docs/migration-plans/erbm-database-plan.md to produce a complete shared ERBM table plan and divide migration work by dependency without writing SQL."

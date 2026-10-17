@@ -1,0 +1,93 @@
+{
+  "info": {
+    "_postman_id": "5fd7a0e1-2bd7-4e4f-b030-41b50ae3e8df",
+    "name": "ERBM API",
+    "description": "Collection for the ERBM backend API. Set baseUrl and use Login to populate accessToken automatically.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
+    { "key": "accessToken", "value": "" },
+    { "key": "employeeId", "value": "1" },
+    { "key": "projectId", "value": "1" },
+    { "key": "activationToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const body = pm.response.json();", "if (body.data && body.data.access_token) {", "  pm.collectionVariables.set('accessToken', body.data.access_token);", "}"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"change-me\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/auth/login" }
+        },
+        {
+          "name": "Refresh access token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const body = pm.response.json();", "if (body.data && body.data.access_token) {", "  pm.collectionVariables.set('accessToken', body.data.access_token);", "}"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "url": "{{baseUrl}}/auth/refresh" }
+        },
+        {
+          "name": "Logout",
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "url": "{{baseUrl}}/auth/logout" }
+        },
+        {
+          "name": "Set initial password",
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{activationToken}}\",\n  \"password\": \"correct-password\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/auth/activation/set-password" }
+        },
+        {
+          "name": "Request activation resend by email",
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/auth/activation/resend" }
+        },
+        {
+          "name": "Get my profile",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/me" }
+        }
+      ]
+    },
+    {
+      "name": "Roles (ADMIN)",
+      "item": [
+        { "name": "List roles", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/roles" } }
+      ]
+    },
+    {
+      "name": "Employees (ADMIN)",
+      "item": [
+        {
+          "name": "Create employees and send activation links",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "[\n  {\n    \"first_name\": \"Ada\",\n    \"last_name\": \"Lovelace\",\n    \"position\": \"Project Coordinator\",\n    \"email\": \"ada@example.com\",\n    \"date_hired\": \"2026-09-29\",\n    \"role_code\": \"PC\"\n  }\n]", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/employees" }
+        },
+        { "name": "List employees", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/employees?page=1&page_size=20" } },
+        { "name": "Get employee", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/employees/{{employeeId}}" } },
+        {
+          "name": "Update employee",
+          "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"position\": \"Senior Project Coordinator\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/employees/{{employeeId}}" }
+        },
+        {
+          "name": "Deactivate employee",
+          "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"employment_end_date\": \"2026-12-31\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/employees/{{employeeId}}/deactivate" }
+        },
+        { "name": "Resend employee activation link", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/employees/{{employeeId}}/resend-activation" } }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Create project (ADMIN, PM, PC)",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ERBM rollout\",\n  \"description\": \"Initial rollout project\",\n  \"budget\": \"100000.00\",\n  \"start_date\": \"2026-10-01\",\n  \"end_date\": \"2026-12-31\",\n  \"pm_user_id\": 1,\n  \"pc_user_id\": 2\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects" }
+        },
+        { "name": "List projects", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/projects?page=1&page_size=20&status=ACTIVE" } },
+        { "name": "Get project", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/projects/{{projectId}}" } },
+        {
+          "name": "Update project and assign PC (ADMIN or project PM)",
+          "request": { "method": "PATCH", "description": "pc_user_id is one positive user ID. Omit it to preserve the PC assignment, or send null to remove it. Assigned PCs may update only name and description.", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ERBM rollout - phase 1\",\n  \"budget\": \"120000.00\",\n  \"pc_user_id\": 2\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects/{{projectId}}" }
+        },
+        {
+          "name": "Remove project PC (ADMIN or project PM)",
+          "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"pc_user_id\": null\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects/{{projectId}}" }
+        }
+      ]
+    }
+  ]
+}

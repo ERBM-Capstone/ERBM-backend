@@ -1,0 +1,96 @@
+digraph erbmArchitecture {
+  graph [
+    rankdir=TB,
+    bgcolor="#ffffff",
+    pad="0.25",
+    nodesep="0.40",
+    ranksep="0.55",
+    splines=polyline,
+    fontname="Helvetica",
+    fontsize=20,
+    labelloc=t,
+    label="ERBM System Architecture\nGo backend and shared database plan"
+  ];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=14,
+    color="#355d86", fillcolor="#edf4fb", fontcolor="#17334d", margin="0.18,0.12"];
+  edge [fontname="Helvetica", fontsize=11, color="#54677b", fontcolor="#37485a", arrowsize=0.75];
+
+  webClient [label="Client / frontend\nADMIN, PM, PC, ACCOUNTING\nEMPLOYEE: auth/profile only", fillcolor="#f2f5f8", color="#7e8b99"];
+
+  subgraph clusterBackend {
+    label="Go backend - one application process";
+    labelloc=t;
+    fontsize=16;
+    color="#8da7c0";
+    style=rounded;
+    margin=22;
+
+    router [label="[E] Gin router\n/api/v1\ninternal/router"];
+    publicAuth [label="[E] Public auth handlers\nlogin / refresh / activation"];
+    authMiddleware [label="[E] Protected-route middleware\nJWT verification + role gates\ninternal/middleware"];
+    protectedHandlers [label="[E/P] Protected handlers\nBind DTOs and trusted actor\ninternal/handler + dto"];
+
+    subgraph clusterServices {
+      label="Service layer";
+      labeljust=l;
+      fontsize=13;
+      color="#c4d2df";
+      style=rounded;
+      existingServices [label="[E] Auth / Activation\nEmployee / Role / Project"];
+      financialServices [label="[P] Advance / Disbursement\nExpense / Document / OCR / Closing\nExact decimals + transaction orchestration",
+        fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
+    }
+
+    repositories [label="[E/P] Repository layer\nGORM + context.Context\nTransactions and row locks\ninternal/repository"];
+    mailAdapter [label="[E] mail.Sender\nSMTP adapter\nSend activation after commit"];
+    documentAdapter [label="[P] File storage adapter\nProvider and upload flow: D06",
+      fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
+    ocrAdapter [label="[P] OCR adapter\nProvider and execution mode: D06\nSupporting data only",
+      fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
+  }
+
+  subgraph clusterData {
+    label="Persistence";
+    fontsize=15;
+    color="#9cacbd";
+    style=rounded;
+    postgres [shape=cylinder, label="[E/P] PostgreSQL\nExisting: Auth / Employee / Project\nPlanned: Advance / Expense / OCR / Closing\n18 application tables + schema_migrations",
+      fillcolor="#edf5ef", color="#477756"];
+    files [shape=folder, label="[P] Document file storage\nexpense_documents stores storage_key\nProvider and retention: D06",
+      fillcolor="#fff4e5", color="#b77923", style="filled,dashed"];
+  }
+
+  subgraph clusterExternal {
+    label="Integrations";
+    fontsize=15;
+    color="#9cacbd";
+    style=rounded;
+    smtp [label="[E] SMTP mail server\nAccount activation messages"];
+    ocrProvider [label="[P] OCR provider\nExtracted totals and line items\nDoes not decide financial amounts",
+      fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
+  }
+
+  migrateRunner [label="[E] Migration CLI\ncmd/migrate - pgx\nUp/down SQL and version tracking", fillcolor="#f2f5f8", color="#7e8b99"];
+  legend [shape=plain, label="E = existing in repository\nP = proposed in ERBM-DB-0.10\nE/P = existing layer with planned additions\nArrows = calls or data access; dashed = proposed connection",
+    fontcolor="#46586b", fontsize=11];
+
+  webClient -> router [label="HTTP / JSON"];
+  router -> publicAuth [label="Public auth routes"];
+  router -> authMiddleware [label="Protected routes"];
+  authMiddleware -> protectedHandlers [label="Verified identity"];
+  publicAuth -> existingServices [label="Auth operations"];
+  protectedHandlers -> existingServices [label="Existing modules"];
+  protectedHandlers -> financialServices [label="Planned modules", style=dashed, color="#b77923"];
+  existingServices -> repositories [label="Database operations"];
+  financialServices -> repositories [label="Financial operations", style=dashed, color="#b77923"];
+  repositories -> postgres [label="SQL"];
+  existingServices -> mailAdapter [label="Post-commit invite"];
+  mailAdapter -> smtp [label="SMTP"];
+  financialServices -> documentAdapter [label="Upload / retrieve", style=dashed, color="#b77923"];
+  documentAdapter -> files [label="File bytes", style=dashed, color="#b77923"];
+  financialServices -> ocrAdapter [label="Document extraction", style=dashed, color="#b77923"];
+  ocrAdapter -> ocrProvider [label="OCR request / result", style=dashed, color="#b77923"];
+  migrateRunner -> postgres [label="DDL + schema_migrations"];
+
+  { rank=same; webClient; legend; }
+}

@@ -22,6 +22,208 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/advances": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lists visible Advances in THB. ADMIN and ACCOUNTING can read every Project; PM sees managed Projects and PC sees assigned Projects. DRAFT is visible only to its creator for every role. Visibility applies before pagination and total count. Sorted by created_at DESC, id DESC.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "advances"
+                ],
+                "summary": "List advances",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Filter by accessible Project ID",
+                        "name": "project_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "DRAFT",
+                            "PENDING_PM_APPROVAL",
+                            "RETURNED_FOR_REVISION",
+                            "APPROVED",
+                            "ACTIVE",
+                            "CLOSED"
+                        ],
+                        "type": "string",
+                        "description": "Advance status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "maxLength": 255,
+                        "type": "string",
+                        "description": "Case-insensitive search in purpose",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.AdvanceListItemResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "PC assigned to an ACTIVE Project creates a DRAFT with a required positive THB amount. Codes use ADV-{project_code}-{per-project sequence}, assigned once at creation. An existing ACTIVE Advance does not block DRAFT creation. Creation, code allocation and audit event commit together. Requester is the authenticated creator.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "advances"
+                ],
+                "summary": "Create an advance draft",
+                "parameters": [
+                    {
+                        "description": "Create Advance draft",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateAdvanceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AdvanceListItemResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/auth/activation/resend": {
             "post": {
                 "description": "Always returns the same result to avoid revealing whether an email has an invited account.",
@@ -715,7 +917,22 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.BaseResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.ProjectResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -750,7 +967,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a project. ADMIN and PC must send pm_user_id. A PM who creates a project becomes its PM, and a PC who creates a project is added to its PCs. budget is a decimal string such as \"1000.00\".",
+                "description": "Creates a project with a server-generated project_code: PRJ-{Gregorian year in Asia/Bangkok}-{number, minimum 6 digits}, starting at 000001 each year. Clients do not send project_code; a supplied value is ignored. A project has at most one PC. Optional pc_user_id accepts one positive user ID; the same PC may coordinate multiple projects. ADMIN and PC must send pm_user_id. A PM creator becomes its PM; a PC creator becomes its sole PC and cannot assign another PC at creation. budget is a decimal string such as \"1000.00\".",
                 "consumes": [
                     "application/json"
                 ],
@@ -776,7 +993,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/dto.BaseResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ProjectResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -819,7 +1048,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a single project with its PM and PCs. PM and PC can only open projects they belong to.",
+                "description": "Returns a single project with its PM and an assigned pc object or null. PM and PC can only open projects they belong to.",
                 "produces": [
                     "application/json"
                 ],
@@ -841,7 +1070,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.BaseResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ProjectResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -882,7 +1123,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Partially updates a project. ADMIN and the project's PM can change every field; a PC of the project can only change name and description. Only the project's PM can close it by sending status \"CLOSED\", and a closed project cannot be changed.",
+                "description": "Partially updates a project. Omit pc_user_id to keep its PC, send a positive user ID to replace it, or null to remove it. ADMIN and the project's PM can edit fields and assignments; the assigned PC can only change name and description. Only the project's PM can close it by sending status \"CLOSED\". Closing returns 409 if any Advance in this Project is not CLOSED, including DRAFT. A closed project cannot be changed.",
                 "consumes": [
                     "application/json"
                 ],
@@ -916,7 +1157,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.BaseResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ProjectResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -1003,6 +1256,74 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.AdvanceListItemResponse": {
+            "type": "object",
+            "properties": {
+                "advance_code": {
+                    "type": "string",
+                    "example": "ADV-PRJ001-001"
+                },
+                "amount": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "project": {
+                    "$ref": "#/definitions/dto.AdvanceProjectResponse"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "requester": {
+                    "$ref": "#/definitions/dto.AdvanceRequesterResponse"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.AdvanceStatus"
+                },
+                "submitted_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AdvanceProjectResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "project_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AdvanceRequesterResponse": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.BaseResponse": {
             "type": "object",
             "properties": {
@@ -1019,6 +1340,27 @@ const docTemplate = `{
                 },
                 "success": {
                     "type": "boolean"
+                }
+            }
+        },
+        "dto.CreateAdvanceRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "project_id",
+                "purpose"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "string",
+                    "example": "15000.00"
+                },
+                "project_id": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "purpose": {
+                    "type": "string"
                 }
             }
         },
@@ -1065,8 +1407,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "budget",
-                "name",
-                "project_code"
+                "name"
             ],
             "properties": {
                 "budget": {
@@ -1082,19 +1423,14 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 255
                 },
-                "pc_user_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                "pc_user_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "x-nullable": true
                 },
                 "pm_user_id": {
                     "type": "integer",
                     "minimum": 1
-                },
-                "project_code": {
-                    "type": "string",
-                    "maxLength": 50
                 },
                 "start_date": {
                     "type": "string"
@@ -1139,6 +1475,72 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.ProjectMemberResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ProjectResponse": {
+            "type": "object",
+            "properties": {
+                "budget": {
+                    "type": "string"
+                },
+                "closed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pc": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ProjectMemberResponse"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "pm": {
+                    "$ref": "#/definitions/dto.ProjectMemberResponse"
+                },
+                "project_code": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.ProjectStatus"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },
@@ -1209,11 +1611,10 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 255
                 },
-                "pc_user_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                "pc_user_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "x-nullable": true
                 },
                 "pm_user_id": {
                     "type": "integer",
@@ -1229,6 +1630,36 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "model.AdvanceStatus": {
+            "type": "string",
+            "enum": [
+                "DRAFT",
+                "PENDING_PM_APPROVAL",
+                "RETURNED_FOR_REVISION",
+                "APPROVED",
+                "ACTIVE",
+                "CLOSED"
+            ],
+            "x-enum-varnames": [
+                "AdvanceStatusDraft",
+                "AdvanceStatusPendingPMApproval",
+                "AdvanceStatusReturnedForRevision",
+                "AdvanceStatusApproved",
+                "AdvanceStatusActive",
+                "AdvanceStatusClosed"
+            ]
+        },
+        "model.ProjectStatus": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "CLOSED"
+            ],
+            "x-enum-varnames": [
+                "ProjectStatusActive",
+                "ProjectStatusClosed"
+            ]
         }
     },
     "securityDefinitions": {
