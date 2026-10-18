@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
@@ -16,6 +17,9 @@ import (
 )
 
 type advanceRepository interface {
+	GetByID(context.Context, int64) (*model.AdvanceListItem, error)
+	GetByIDForUpdate(context.Context, *gorm.DB, int64) (*model.Advance, error)
+	Update(context.Context, *gorm.DB, *model.Advance) error
 	List(context.Context, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)
 	GetProjectAccess(context.Context, int64, int64) (*model.AdvanceProjectAccess, error)
 	WithTx(context.Context, func(*gorm.DB) error) error
@@ -50,9 +54,7 @@ func normalizeAdvanceAmount(value string) (string, error) {
 }
 
 func (s *AdvanceService) Create(ctx context.Context, userID int64, role string, req *dto.CreateAdvanceRequest) (*model.AdvanceListItem, error) {
-	if userID <= 0 {
-		return nil, dto.ErrUnauthorized
-	}
+
 	if strings.ToUpper(strings.TrimSpace(role)) != rolePC {
 		return nil, dto.ErrForbidden
 	}
@@ -157,4 +159,128 @@ func (s *AdvanceService) List(ctx context.Context, userID int64, role string, fi
 		return nil, 0, dto.ErrInternalServer
 	}
 	return items, total, nil
+}
+
+func (s *AdvanceService) GetByID(ctx context.Context, userID int64, role string, id int64) (*model.AdvanceListItem, error) {
+	if userID <= 0 {
+		return nil, dto.ErrUnauthorized
+	}
+	role = strings.ToUpper(strings.TrimSpace(role))
+	switch role {
+	case roleAdmin, roleAccounting, rolePM, rolePC:
+	default:
+		return nil, dto.ErrForbidden
+	}
+	if id <= 0 {
+		return nil, dto.ErrBadRequest
+	}
+	item, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, advanceDetailError(err)
+	}
+	if item.Status == model.AdvanceStatusDraft && item.CreatedBy != userID {
+		return nil, dto.ErrForbidden
+	}
+	// Authorize against the Project columns read in the same statement as
+	// status and content, avoiding a mix of old content and new membership.
+	if (role == rolePM && item.PMUserID != userID) ||
+		(role == rolePC && (item.PCUserID == nil || *item.PCUserID != userID)) {
+		return nil, dto.ErrForbidden
+	}
+	return item, nil
+}
+
+func (s *AdvanceService) Update(ctx context.Context, userID int64, role string, id int64, req *dto.UpdateAdvanceRequest) (*model.AdvanceListItem, error) {
+	if userID <= 0 {
+		return nil, dto.ErrUnauthorized
+	}
+	if strings.ToUpper(strings.TrimSpace(role)) != rolePC {
+		return nil, dto.ErrForbidden
+	}
+	if id <= 0 || req == nil || (req.Purpose == nil && req.Amount == nil) {
+		return nil, dto.ErrBadRequest
+	}
+	var purpose, amount string
+	if req.Purpose != nil {
+		purpose = strings.TrimSpace(*req.Purpose)
+		if purpose == "" {
+			return nil, dto.ErrBadRequest
+		}
+	}
+	if req.Amount != nil {
+		var err error
+		amount, err = normalizeAdvanceAmount(*req.Amount)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Project IDs are immutable. Look up the parent before taking locks in
+	// Project -> Advance order, shared with creation and Project updates.
+	item, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, advanceDetailError(err)
+	}
+	var result *model.AdvanceListItem
+	err = s.repo.WithTx(ctx, func(tx *gorm.DB) error {
+		project, err := s.repo.GetProjectForUpdate(ctx, tx, item.ProjectID)
+		if err != nil {
+			return err
+		}
+		advance, err := s.repo.GetByIDForUpdate(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if advance.CreatedBy != userID || project.PCUserID == nil || *project.PCUserID != userID {
+			return dto.ErrForbidden
+		}
+		if project.Status == model.ProjectStatusClosed {
+			return dto.ErrProjectClosed
+		}
+		if advance.Status != model.AdvanceStatusDraft && advance.Status != model.AdvanceStatusReturnedForRevision {
+			return dto.ErrAdvanceNotEditable
+		}
+		previousStatus := advance.Status
+		before, err := json.Marshal(advance)
+		if err != nil {
+			return err
+		}
+		if req.Purpose != nil {
+			advance.Purpose = purpose
+		}
+		if req.Amount != nil {
+			advance.Amount = amount
+		}
+		advance.Status = model.AdvanceStatusDraft
+		advance.UpdatedBy, advance.UpdatedAt = userID, time.Now().UTC()
+		if err := s.repo.Update(ctx, tx, advance); err != nil {
+			return err
+		}
+		after, err := json.Marshal(advance)
+		if err != nil {
+			return err
+		}
+		beforeData := string(before)
+		if err := s.repo.RecordEvent(ctx, tx, &model.AdvanceWorkflowEvent{
+			AdvanceID: id, ActorUserID: userID, Action: model.AdvanceActionUpdate,
+			PreviousStatus: &previousStatus, ResultingStatus: advance.Status,
+			BeforeData: &beforeData, AfterData: string(after), OccurredAt: advance.UpdatedAt,
+		}); err != nil {
+			return err
+		}
+		result, err = s.repo.GetListItem(ctx, tx, id)
+		return err
+	})
+	if err != nil {
+		return nil, advanceDetailError(err)
+	}
+	return result, nil
+}
+
+func advanceDetailError(err error) error {
+	for _, known := range []error{dto.ErrAdvanceNotFound, dto.ErrForbidden, dto.ErrProjectClosed, dto.ErrAdvanceNotEditable} {
+		if errors.Is(err, known) {
+			return known
+		}
+	}
+	return dto.ErrInternalServer
 }

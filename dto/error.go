@@ -30,6 +30,10 @@ var (
 	ErrInvalidProjectManager      = errors.New("pm must be an active user with the PM role")
 	ErrInvalidProjectCoordinator  = errors.New("pc must be an active user with the PC role")
 
+	// Advance resource
+	ErrAdvanceNotFound    = errors.New("advance not found")
+	ErrAdvanceNotEditable = errors.New("advance can only be edited in DRAFT or RETURNED_FOR_REVISION")
+
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
 )
@@ -69,4 +73,6 @@ var ErrorStatusMap = map[error]int{
 	ErrProjectHasUnclosedAdvances: http.StatusConflict,
 	ErrInvalidProjectManager:      http.StatusBadRequest,
 	ErrInvalidProjectCoordinator:  http.StatusBadRequest,
+	ErrAdvanceNotFound:            http.StatusNotFound,
+	ErrAdvanceNotEditable:         http.StatusConflict,
 }

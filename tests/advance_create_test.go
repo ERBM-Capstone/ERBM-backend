@@ -15,6 +15,7 @@ import (
 	"github.com/ERBM-Capstone/ERBM-backend/internal/middleware"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
 	jwtmanager "github.com/ERBM-Capstone/ERBM-backend/internal/pkg/jwt"
+	"github.com/ERBM-Capstone/ERBM-backend/internal/repository"
 	appRouter "github.com/ERBM-Capstone/ERBM-backend/internal/router"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -51,6 +52,7 @@ func TestAdvanceCreateRouteRequiresAuthenticationAndPC(t *testing.T) {
 // Database operations are substituted here; actual transaction/locking behavior
 // is covered by the opt-in PostgreSQL tests.
 type advanceCreateRepoStub struct {
+	*repository.AdvanceRepository          // Detail/update methods are unused by creation.
 	project                                model.Project
 	member                                 bool
 	number                                 int64

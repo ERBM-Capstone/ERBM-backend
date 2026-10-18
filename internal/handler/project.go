@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
@@ -202,6 +203,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 
 // getActor reads the authenticated user ID and role set by RequireAuth.
 func getActor(c *gin.Context) (int64, string, bool) {
+	fmt.Println("getActor called") // Debugging line to check if the function is being called
 	userValue, exists := c.Get(middleware.ContextKeyUserID)
 	userID, ok := userValue.(int64)
 	if !exists || !ok || userID <= 0 {

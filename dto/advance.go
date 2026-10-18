@@ -12,6 +12,12 @@ type CreateAdvanceRequest struct {
 	Amount    string `json:"amount" binding:"required" example:"15000.00"`
 }
 
+// Nil fields retain their current values. At least one field must be supplied.
+type UpdateAdvanceRequest struct {
+	Purpose *string `json:"purpose" binding:"omitempty,min=1" extensions:"x-nullable"`
+	Amount  *string `json:"amount" binding:"omitempty,min=1" example:"15000.00" extensions:"x-nullable"`
+}
+
 // AdvanceListQuery contains Advance filters and pagination. The HTTP handler
 // applies paging defaults to omitted or zero page/page_size values.
 type AdvanceListQuery struct {

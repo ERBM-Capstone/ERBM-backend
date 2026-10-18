@@ -15,6 +15,9 @@ coverage.*
 !/tests/advance_repository_test.go
 !/tests/advance_create_test.go
 !/tests/advance_create_postgres_test.go
+!/tests/advance_detail_test.go
+!/tests/advance_detail_postgres_test.go
+!/tests/advance_detail_repository_test.go
 !/tests/pagination_response_test.go
 !/tests/project_single_coordinator_test.go
 !/tests/project_single_coordinator_postgres_test.go

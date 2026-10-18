@@ -24,16 +24,23 @@ func (s AdvanceStatus) IsKnown() bool {
 
 type AdvanceAction string
 
-const AdvanceActionCreate AdvanceAction = "CREATE"
+const (
+	AdvanceActionCreate AdvanceAction = "CREATE"
+	AdvanceActionUpdate AdvanceAction = "UPDATE"
+)
 
 // AdvanceListItem is the read model of an Advance joined with its Project.
 // Amount stays an exact decimal string in THB.
 type AdvanceListItem struct {
-	ID                 int64
-	AdvanceCode        string
-	ProjectID          int64
-	ProjectCode        string
-	ProjectName        string
+	ID          int64
+	AdvanceCode string
+	ProjectID   int64
+	ProjectCode string
+	ProjectName string
+	// Project membership is read with the Advance in one database snapshot.
+	// Response DTOs omit these internal authorization fields.
+	PMUserID           int64  `gorm:"column:pm_user_id"`
+	PCUserID           *int64 `gorm:"column:pc_user_id"`
 	Purpose            string
 	Amount             string
 	Status             AdvanceStatus

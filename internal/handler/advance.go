@@ -11,8 +11,84 @@ import (
 )
 
 type advanceService interface {
+	GetByID(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
+	Update(context.Context, int64, string, int64, *dto.UpdateAdvanceRequest) (*model.AdvanceListItem, error)
 	List(context.Context, int64, string, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)
 	Create(context.Context, int64, string, *dto.CreateAdvanceRequest) (*model.AdvanceListItem, error)
+}
+
+// GetByID godoc
+// @Summary      Get an advance
+// @Description  Returns the current Advance with the same fields and visibility as the list. ADMIN and ACCOUNTING can read every Project; PM and PC must be assigned to its Project. DRAFT is private to its creator for every role.
+// @Tags         advances
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "Advance ID" minimum(1)
+// @Success      200 {object} dto.BaseResponse{data=dto.AdvanceListItemResponse}
+// @Failure      400 {object} dto.BaseResponse
+// @Failure      401 {object} dto.BaseResponse
+// @Failure      403 {object} dto.BaseResponse
+// @Failure      404 {object} dto.BaseResponse
+// @Failure      500 {object} dto.BaseResponse
+// @Router       /api/v1/advances/{id} [get]
+func (h *AdvanceHandler) GetByID(c *gin.Context) {
+	userID, role, ok := getActor(c)
+	if !ok {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+	var uri dto.URIParam
+	if err := c.ShouldBindUri(&uri); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	item, err := h.service.GetByID(c.Request.Context(), userID, role, uri.ID)
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.OK(c, dto.ToAdvanceListItemResponse(*item))
+}
+
+// Update godoc
+// @Summary      Update an advance draft
+// @Description  Only the PC creator who is still assigned to the Project can edit purpose and/or amount. Omitted or null fields retain their values; at least one non-null field is required. Amount uses the positive decimal-string THB rules of creation. Only DRAFT or RETURNED_FOR_REVISION can be edited; the result is DRAFT. A closed Project cannot be changed. Update and before/after audit snapshots commit together.
+// @Tags         advances
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "Advance ID" minimum(1)
+// @Param        body body dto.UpdateAdvanceRequest true "Advance update payload"
+// @Success      200 {object} dto.BaseResponse{data=dto.AdvanceListItemResponse}
+// @Failure      400 {object} dto.BaseResponse
+// @Failure      401 {object} dto.BaseResponse
+// @Failure      403 {object} dto.BaseResponse
+// @Failure      404 {object} dto.BaseResponse
+// @Failure      409 {object} dto.BaseResponse
+// @Failure      500 {object} dto.BaseResponse
+// @Router       /api/v1/advances/{id} [patch]
+func (h *AdvanceHandler) Update(c *gin.Context) {
+	userID, role, ok := getActor(c)
+	if !ok {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+	var uri dto.URIParam
+	if err := c.ShouldBindUri(&uri); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	var req dto.UpdateAdvanceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	item, err := h.service.Update(c.Request.Context(), userID, role, uri.ID, &req)
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.OK(c, dto.ToAdvanceListItemResponse(*item))
 }
 
 type AdvanceHandler struct{ service advanceService }
@@ -37,6 +113,7 @@ func NewAdvanceHandler(svc advanceService) *AdvanceHandler { return &AdvanceHand
 // @Router       /api/v1/advances [post]
 func (h *AdvanceHandler) Create(c *gin.Context) {
 	userID, role, ok := getActor(c)
+
 	if !ok {
 		dto.HandleError(c, dto.ErrUnauthorized)
 		return

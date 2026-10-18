@@ -143,13 +143,14 @@ func TestAdvanceListServiceRejectsInvalidScopeAndFilters(t *testing.T) {
 }
 
 type advanceListServiceStub struct {
-	items  []model.AdvanceListItem
-	total  int64
-	err    error
-	actor  int64
-	role   string
-	filter model.AdvanceFilter
-	calls  int
+	*service.AdvanceService // Detail/update methods are unused by List.
+	items                   []model.AdvanceListItem
+	total                   int64
+	err                     error
+	actor                   int64
+	role                    string
+	filter                  model.AdvanceFilter
+	calls                   int
 }
 
 func (s *advanceListServiceStub) List(_ context.Context, userID int64, role string, filter model.AdvanceFilter) ([]model.AdvanceListItem, int64, error) {

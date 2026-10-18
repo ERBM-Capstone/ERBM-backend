@@ -15,6 +15,42 @@ type AdvanceRepository struct{ db *gorm.DB }
 
 func NewAdvanceRepository(db *gorm.DB) *AdvanceRepository { return &AdvanceRepository{db: db} }
 
+func (r *AdvanceRepository) GetByID(ctx context.Context, id int64) (*model.AdvanceListItem, error) {
+	item, err := r.GetListItem(ctx, r.db, id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, dto.ErrAdvanceNotFound
+	}
+	return item, err
+}
+
+func (r *AdvanceRepository) GetByIDForUpdate(ctx context.Context, tx *gorm.DB, id int64) (*model.Advance, error) {
+	var advance model.Advance
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).Take(&advance).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, dto.ErrAdvanceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &advance, nil
+}
+
+// Write only editable data and service-owned workflow/audit fields. In
+// particular, codes, Project, creator and submission metadata stay unchanged.
+func (r *AdvanceRepository) Update(ctx context.Context, tx *gorm.DB, advance *model.Advance) error {
+	result := tx.WithContext(ctx).Model(&model.Advance{}).Where("id = ?", advance.ID).Updates(map[string]any{
+		"purpose": advance.Purpose, "amount": advance.Amount, "status": advance.Status,
+		"updated_by": advance.UpdatedBy, "updated_at": advance.UpdatedAt,
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return dto.ErrAdvanceNotFound
+	}
+	return nil
+}
+
 func (r *AdvanceRepository) WithTx(ctx context.Context, fn func(*gorm.DB) error) error {
 	return r.db.WithContext(ctx).Transaction(fn)
 }
@@ -55,7 +91,7 @@ func (r *AdvanceRepository) RecordEvent(ctx context.Context, tx *gorm.DB, event 
 	return tx.WithContext(ctx).Create(event).Error
 }
 
-const advanceItemColumns = `a.id, a.advance_code, a.project_id, p.project_code, p.name AS project_name,
+const advanceItemColumns = `a.id, a.advance_code, a.project_id, p.project_code, p.name AS project_name, p.pm_user_id, p.pc_user_id,
 	a.purpose, a.amount::text AS amount, a.status, a.created_by,
 	requester_employee.first_name AS requester_first_name, requester_employee.last_name AS requester_last_name,
 	a.submitted_at, a.created_at, a.updated_at`

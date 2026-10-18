@@ -2,6 +2,8 @@
 
 Amounts are decimal strings in THB, with no currency field. Draft creation is
 documented separately in [POST /api/v1/advances](advance-create.md).
+Single-record reads and edits are documented in
+[GET, PATCH /api/v1/advances/{id}](advance-detail.md).
 
 ## Contract
 
