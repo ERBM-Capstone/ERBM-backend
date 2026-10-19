@@ -39,8 +39,8 @@ an after snapshot with exact monetary text.
 The user confirmed workflow history with request snapshots for each round,
 including historical purpose and amount, rather than only a timeline of actions.
 Later edits must preserve earlier snapshots. The CREATE event provides the
-initial snapshot; submission/resubmission history and revision retrieval belong
-to their upcoming endpoints and are not implemented by this endpoint.
+initial snapshot; [submission and revision endpoints](advance-submit-revisions.md)
+preserve a separate snapshot for every successful submission round.
 
 Returns 201 with the standard `success`, `message: "Created"`, `data` envelope.
 Data has the same shape as a [GET list item](advance-list.md), including

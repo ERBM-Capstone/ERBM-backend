@@ -27,6 +27,7 @@ type AdvanceAction string
 const (
 	AdvanceActionCreate AdvanceAction = "CREATE"
 	AdvanceActionUpdate AdvanceAction = "UPDATE"
+	AdvanceActionSubmit AdvanceAction = "SUBMIT"
 )
 
 // AdvanceListItem is the read model of an Advance joined with its Project.
@@ -62,6 +63,8 @@ type Advance struct {
 	Status      AdvanceStatus `json:"status"`
 	CreatedBy   int64         `json:"created_by"`
 	UpdatedBy   int64         `json:"updated_by"`
+	SubmittedAt *time.Time    `json:"submitted_at"`
+	SubmittedBy *int64        `json:"submitted_by"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
 }
@@ -82,6 +85,25 @@ type AdvanceProjectAccess struct {
 	ProjectID     int64
 	PMUserID      int64 `gorm:"column:pm_user_id"`
 	IsCoordinator bool
+}
+
+// Submission history and current visibility are read in one database snapshot.
+type AdvanceSubmissionHistory struct {
+	Advance     AdvanceListItem
+	Submissions []AdvanceSubmission
+}
+
+type AdvanceSubmission struct {
+	ActorUserID int64
+	AfterData   string
+	OccurredAt  time.Time
+}
+
+type AdvanceRevision struct {
+	Revision    int64
+	SubmittedBy int64
+	SubmittedAt time.Time
+	Snapshot    Advance
 }
 
 // Actor fields are assigned by the service from authentication, never DTOs.

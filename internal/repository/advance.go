@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/ERBM-Capstone/ERBM-backend/dto"
 	"github.com/ERBM-Capstone/ERBM-backend/internal/model"
@@ -53,6 +54,21 @@ func (r *AdvanceRepository) Update(ctx context.Context, tx *gorm.DB, advance *mo
 
 func (r *AdvanceRepository) WithTx(ctx context.Context, fn func(*gorm.DB) error) error {
 	return r.db.WithContext(ctx).Transaction(fn)
+}
+
+// Submit writes workflow metadata only; the locked request contents stay intact.
+func (r *AdvanceRepository) Submit(ctx context.Context, tx *gorm.DB, advance *model.Advance) error {
+	result := tx.WithContext(ctx).Model(&model.Advance{}).Where("id = ?", advance.ID).Updates(map[string]any{
+		"status": advance.Status, "submitted_at": advance.SubmittedAt, "submitted_by": advance.SubmittedBy,
+		"updated_at": advance.UpdatedAt, "updated_by": advance.UpdatedBy,
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return dto.ErrAdvanceNotFound
+	}
+	return nil
 }
 
 func (r *AdvanceRepository) GetProjectForUpdate(ctx context.Context, tx *gorm.DB, projectID int64) (*model.Project, error) {
@@ -123,6 +139,38 @@ func (r *AdvanceRepository) GetProjectAccess(ctx context.Context, projectID, use
 		return nil, err
 	}
 	return &access, nil
+}
+
+func (r *AdvanceRepository) GetSubmissionHistory(ctx context.Context, id int64) (*model.AdvanceSubmissionHistory, error) {
+	type historyRow struct {
+		model.AdvanceListItem `gorm:"embedded"`
+		EventID               *int64
+		ActorUserID           int64
+		AfterData             string
+		OccurredAt            *time.Time
+	}
+	var rows []historyRow
+	// LEFT JOIN distinguishes an unsubmitted Advance from a missing Advance.
+	// Status, membership and submission snapshots share this one SQL statement.
+	err := advanceItemQuery(ctx, r.db).
+		Joins("LEFT JOIN advance_workflow_events AS e ON e.advance_id = a.id AND e.action = ?", model.AdvanceActionSubmit).
+		Select(advanceItemColumns+", e.id AS event_id, e.actor_user_id, e.after_data::text AS after_data, e.occurred_at").
+		Where("a.id = ?", id).Order("e.id ASC").Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, dto.ErrAdvanceNotFound
+	}
+	history := &model.AdvanceSubmissionHistory{Advance: rows[0].AdvanceListItem, Submissions: make([]model.AdvanceSubmission, 0, len(rows))}
+	for _, row := range rows {
+		if row.EventID != nil {
+			history.Submissions = append(history.Submissions, model.AdvanceSubmission{
+				ActorUserID: row.ActorUserID, AfterData: row.AfterData, OccurredAt: *row.OccurredAt,
+			})
+		}
+	}
+	return history, nil
 }
 
 func (r *AdvanceRepository) List(ctx context.Context, filter model.AdvanceFilter) ([]model.AdvanceListItem, int64, error) {

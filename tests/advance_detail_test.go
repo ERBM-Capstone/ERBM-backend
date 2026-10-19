@@ -79,7 +79,7 @@ func advanceDetailFixture() *advanceDetailRepoStub {
 
 func (r *advanceDetailRepoStub) item() *model.AdvanceListItem {
 	a := r.advance
-	return &model.AdvanceListItem{ID: a.ID, AdvanceCode: a.AdvanceCode, ProjectID: a.ProjectID, ProjectCode: r.project.ProjectCode, ProjectName: r.project.Name, PMUserID: r.project.PMUserID, PCUserID: r.project.PCUserID, Purpose: a.Purpose, Amount: a.Amount, Status: a.Status, CreatedBy: a.CreatedBy, RequesterFirstName: "Somchai", RequesterLastName: "Jaidee", CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
+	return &model.AdvanceListItem{ID: a.ID, AdvanceCode: a.AdvanceCode, ProjectID: a.ProjectID, ProjectCode: r.project.ProjectCode, ProjectName: r.project.Name, PMUserID: r.project.PMUserID, PCUserID: r.project.PCUserID, Purpose: a.Purpose, Amount: a.Amount, Status: a.Status, CreatedBy: a.CreatedBy, RequesterFirstName: "Somchai", RequesterLastName: "Jaidee", SubmittedAt: a.SubmittedAt, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt}
 }
 
 func (r *advanceDetailRepoStub) GetByID(_ context.Context, id int64) (*model.AdvanceListItem, error) {

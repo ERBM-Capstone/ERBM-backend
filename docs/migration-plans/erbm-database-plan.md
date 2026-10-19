@@ -402,8 +402,11 @@ Nullable/default/ความสัมพันธ์ของ advances แล�
 ผู้ใช้ยืนยันประวัติแบบ 2: เก็บทั้งผู้กระทำ เหตุการณ์ เวลา สถานะ เหตุผล
 และ snapshot ของคำขอแต่ละรอบ เพื่อย้อนดูยอดและรายละเอียดเดิมหลังมีการแก้ไข
 ข้อมูลใน `advances` เป็นค่าปัจจุบัน ส่วน snapshot ที่บันทึกแล้วต้องคงข้อมูลของรอบนั้น
-ปัจจุบัน POST บันทึก CREATE snapshot แล้ว; ประวัติตอนส่ง/ส่งใหม่และการอ่าน revisions
-เป็นงานของ endpoint ที่จะรีวิวต่อ ไม่ถือว่าทำครบแล้วจากการมี schema นี้
+ปัจจุบัน POST บันทึก CREATE, PATCH บันทึก UPDATE และ Submit บันทึก SUBMIT snapshot
+แล้ว ผู้ใช้ยืนยัน 19 ต.ค. 2026 ให้ GET revisions คืนเฉพาะรอบที่กด Submit พร้อม
+เลข revision เริ่ม 1 แยกต่อ Advance และ snapshot ของแต่ละรอบ; CREATE/UPDATE
+ไม่นับเป็นรอบที่ส่ง ดู [Submit/Revisions API](../api/advance-submit-revisions.md)
+ใช้ event และ submission columns เดิมใน 0005 โดยไม่เพิ่มหรือรัน migration
 
 ใช้ common event columns ทั้ง 7 column ในหัวข้อ 4 และเพิ่ม:
 

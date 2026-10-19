@@ -394,6 +394,169 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/advances/{id}/revisions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns only SUBMIT snapshots in submission order, numbered from revision 1. CREATE and UPDATE events do not count as revisions. Never-submitted Advances return an empty array. Uses the same current Project access and private-DRAFT visibility as GET detail. Historical purpose and exact monetary text come from immutable snapshots.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "advances"
+                ],
+                "summary": "List submitted advance revisions",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Advance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.AdvanceRevisionResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/advances/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The PC creator who is still assigned to the open Project submits DRAFT to PENDING_PM_APPROVAL. No request body is required. Submission metadata and immutable before/after snapshots commit together. Repeated submission or any other status returns 409; returned requests must be edited to DRAFT first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "advances"
+                ],
+                "summary": "Submit an advance draft",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Advance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AdvanceListItemResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/auth/activation/resend": {
             "post": {
                 "description": "Always returns the same result to avoid revealing whether an email has an invited account.",
@@ -1490,6 +1653,60 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AdvanceRevisionResponse": {
+            "type": "object",
+            "properties": {
+                "revision": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/dto.AdvanceRevisionSnapshotResponse"
+                },
+                "submitted_at": {
+                    "type": "string"
+                },
+                "submitted_by": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AdvanceRevisionSnapshotResponse": {
+            "type": "object",
+            "properties": {
+                "advance_code": {
+                    "type": "string"
+                },
+                "amount": {
+                    "type": "string",
+                    "example": "15000.00"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.AdvanceStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
                     "type": "integer"
                 }
             }

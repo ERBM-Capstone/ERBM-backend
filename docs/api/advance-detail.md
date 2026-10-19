@@ -52,6 +52,8 @@ and returns a generic 500.
 UPDATE events are audit history; this endpoint does not assign submission
 revision numbers. Existing submission timestamps are retained when a returned
 request becomes a draft again.
+Successful [submission](advance-submit-revisions.md) records the next submitted
+revision and updates the latest submission timestamp.
 
 Errors: 400 invalid ID/body, 401 unauthenticated, 403 role/ownership/Project
 access denied, 404 Advance missing, 409 noneditable status/closed Project,

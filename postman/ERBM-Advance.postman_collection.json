@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "20261018-1de8a4e1-9fd5-493d-ac55-4fc0b3b4636d",
     "name": "ERBM Advance API",
-    "description": "Advance-only collection for the ERBM backend. Set baseUrl, accessToken, and projectId before use. POST Create Advance saves the returned ID to advanceId for the GET/PATCH requests.",
+    "description": "Advance API collection for the ERBM backend. Set baseUrl, accessToken, and projectId before use. Create Advance saves advanceId for detail, editing, submission and revision history. Submit requires the PC creator who is still assigned to the Project.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -118,6 +118,57 @@
         },
         "url": "{{baseUrl}}/advances/{{advanceId}}"
       },
+      "response": []
+    },
+    {
+      "name": "Submit Advance (PC)",
+      "request": {
+        "method": "POST",
+        "description": "No body required. Submits DRAFT to PENDING_PM_APPROVAL and saves an immutable revision. Returned requests must be edited to DRAFT first. Repeated submission returns 409.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/submit"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('awaits PM approval', () => pm.expect(body.data?.status).to.eql('PENDING_PM_APPROVAL'));",
+              "pm.test('has submission time', () => pm.expect(body.data?.submitted_at).to.be.a('string'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "List Submitted Revisions",
+      "request": {
+        "method": "GET",
+        "description": "Returns only submitted rounds, numbered from revision 1 per Advance, with immutable purpose/amount snapshots. CREATE and UPDATE events do not count. An unsubmitted Draft returns []. Same access and private-DRAFT rules as GET detail.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/revisions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('returns revisions array', () => pm.expect(body.data).to.be.an('array'));",
+              "if (Array.isArray(body.data)) {",
+              "  body.data.forEach((item, index) => {",
+              "    pm.test('revision ' + (index + 1), () => pm.expect(item.revision).to.eql(index + 1));",
+              "    pm.test('exact monetary text', () => pm.expect(item.snapshot.amount).to.be.a('string'));",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ],
       "response": []
     }
   ]

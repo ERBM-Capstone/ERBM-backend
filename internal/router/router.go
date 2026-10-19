@@ -113,8 +113,10 @@ func New(db *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, logi
 	advances.Use(middleware.RequireRole("ADMIN", "PM", "PC", "ACCOUNTING"))
 	advances.GET("", advancesHandler.List)
 	advances.GET("/:id", advancesHandler.GetByID)
+	advances.GET("/:id/revisions", advancesHandler.Revisions)
 	advances.POST("", middleware.RequireRole("PC"), advancesHandler.Create)
 	advances.PATCH("/:id", middleware.RequireRole("PC"), advancesHandler.Update)
+	advances.POST("/:id/submit", middleware.RequireRole("PC"), advancesHandler.Submit)
 
 	return r
 }

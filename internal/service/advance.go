@@ -20,6 +20,8 @@ type advanceRepository interface {
 	GetByID(context.Context, int64) (*model.AdvanceListItem, error)
 	GetByIDForUpdate(context.Context, *gorm.DB, int64) (*model.Advance, error)
 	Update(context.Context, *gorm.DB, *model.Advance) error
+	Submit(context.Context, *gorm.DB, *model.Advance) error
+	GetSubmissionHistory(context.Context, int64) (*model.AdvanceSubmissionHistory, error)
 	List(context.Context, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)
 	GetProjectAccess(context.Context, int64, int64) (*model.AdvanceProjectAccess, error)
 	WithTx(context.Context, func(*gorm.DB) error) error
@@ -178,16 +180,55 @@ func (s *AdvanceService) GetByID(ctx context.Context, userID int64, role string,
 	if err != nil {
 		return nil, advanceDetailError(err)
 	}
+	if err := authorizeAdvanceRead(item, userID, role); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func authorizeAdvanceRead(item *model.AdvanceListItem, userID int64, role string) error {
 	if item.Status == model.AdvanceStatusDraft && item.CreatedBy != userID {
-		return nil, dto.ErrForbidden
+		return dto.ErrForbidden
 	}
 	// Authorize against the Project columns read in the same statement as
 	// status and content, avoiding a mix of old content and new membership.
 	if (role == rolePM && item.PMUserID != userID) ||
 		(role == rolePC && (item.PCUserID == nil || *item.PCUserID != userID)) {
+		return dto.ErrForbidden
+	}
+	return nil
+}
+
+func (s *AdvanceService) Revisions(ctx context.Context, userID int64, role string, id int64) ([]model.AdvanceRevision, error) {
+
+	role = strings.ToUpper(strings.TrimSpace(role))
+	switch role {
+	case roleAdmin, roleAccounting, rolePM, rolePC:
+	default:
 		return nil, dto.ErrForbidden
 	}
-	return item, nil
+	if id <= 0 {
+		return nil, dto.ErrBadRequest
+	}
+	history, err := s.repo.GetSubmissionHistory(ctx, id)
+	if err != nil {
+		return nil, advanceDetailError(err)
+	}
+	if err := authorizeAdvanceRead(&history.Advance, userID, role); err != nil {
+		return nil, err
+	}
+	revisions := make([]model.AdvanceRevision, 0, len(history.Submissions))
+	for i, submission := range history.Submissions {
+		var snapshot model.Advance
+		if err := json.Unmarshal([]byte(submission.AfterData), &snapshot); err != nil {
+			return nil, dto.ErrInternalServer
+		}
+		revisions = append(revisions, model.AdvanceRevision{
+			Revision: int64(i + 1), SubmittedBy: submission.ActorUserID,
+			SubmittedAt: submission.OccurredAt, Snapshot: snapshot,
+		})
+	}
+	return revisions, nil
 }
 
 func (s *AdvanceService) Update(ctx context.Context, userID int64, role string, id int64, req *dto.UpdateAdvanceRequest) (*model.AdvanceListItem, error) {
@@ -276,8 +317,78 @@ func (s *AdvanceService) Update(ctx context.Context, userID int64, role string, 
 	return result, nil
 }
 
+func (s *AdvanceService) Submit(ctx context.Context, userID int64, role string, id int64) (*model.AdvanceListItem, error) {
+	if strings.ToUpper(strings.TrimSpace(role)) != rolePC {
+		return nil, dto.ErrForbidden
+	}
+	if id <= 0 {
+		return nil, dto.ErrBadRequest
+	}
+	item, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, advanceDetailError(err)
+	}
+	var result *model.AdvanceListItem
+	err = s.repo.WithTx(ctx, func(tx *gorm.DB) error {
+		// Keep the Project -> Advance lock order used by editing and closing.
+		project, err := s.repo.GetProjectForUpdate(ctx, tx, item.ProjectID)
+		if err != nil {
+			return err
+		}
+		advance, err := s.repo.GetByIDForUpdate(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if advance.CreatedBy != userID || project.PCUserID == nil || *project.PCUserID != userID {
+			return dto.ErrForbidden
+		}
+		if project.Status == model.ProjectStatusClosed {
+			return dto.ErrProjectClosed
+		}
+		if advance.Status != model.AdvanceStatusDraft {
+			return dto.ErrAdvanceNotSubmittable
+		}
+		if strings.TrimSpace(advance.Purpose) == "" {
+			return dto.ErrBadRequest
+		}
+		if _, err := normalizeAdvanceAmount(advance.Amount); err != nil {
+			return err
+		}
+		previousStatus := advance.Status
+		before, err := json.Marshal(advance)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		advance.Status = model.AdvanceStatusPendingPMApproval
+		advance.SubmittedAt, advance.SubmittedBy = &now, &userID
+		advance.UpdatedAt, advance.UpdatedBy = now, userID
+		if err := s.repo.Submit(ctx, tx, advance); err != nil {
+			return err
+		}
+		after, err := json.Marshal(advance)
+		if err != nil {
+			return err
+		}
+		beforeData := string(before)
+		if err := s.repo.RecordEvent(ctx, tx, &model.AdvanceWorkflowEvent{
+			AdvanceID: id, ActorUserID: userID, Action: model.AdvanceActionSubmit,
+			PreviousStatus: &previousStatus, ResultingStatus: advance.Status,
+			BeforeData: &beforeData, AfterData: string(after), OccurredAt: now,
+		}); err != nil {
+			return err
+		}
+		result, err = s.repo.GetListItem(ctx, tx, id)
+		return err
+	})
+	if err != nil {
+		return nil, advanceDetailError(err)
+	}
+	return result, nil
+}
+
 func advanceDetailError(err error) error {
-	for _, known := range []error{dto.ErrAdvanceNotFound, dto.ErrForbidden, dto.ErrProjectClosed, dto.ErrAdvanceNotEditable} {
+	for _, known := range []error{dto.ErrAdvanceNotFound, dto.ErrForbidden, dto.ErrProjectClosed, dto.ErrAdvanceNotEditable, dto.ErrAdvanceNotSubmittable, dto.ErrBadRequest} {
 		if errors.Is(err, known) {
 			return known
 		}

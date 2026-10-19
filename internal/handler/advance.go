@@ -13,6 +13,8 @@ import (
 type advanceService interface {
 	GetByID(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
 	Update(context.Context, int64, string, int64, *dto.UpdateAdvanceRequest) (*model.AdvanceListItem, error)
+	Submit(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
+	Revisions(context.Context, int64, string, int64) ([]model.AdvanceRevision, error)
 	List(context.Context, int64, string, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)
 	Create(context.Context, int64, string, *dto.CreateAdvanceRequest) (*model.AdvanceListItem, error)
 }
@@ -93,7 +95,78 @@ func (h *AdvanceHandler) Update(c *gin.Context) {
 
 type AdvanceHandler struct{ service advanceService }
 
+// Submit godoc
+// @Summary      Submit an advance draft
+// @Description  The PC creator who is still assigned to the open Project submits DRAFT to PENDING_PM_APPROVAL. No request body is required. Submission metadata and immutable before/after snapshots commit together. Repeated submission or any other status returns 409; returned requests must be edited to DRAFT first.
+// @Tags         advances
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "Advance ID" minimum(1)
+// @Success      200 {object} dto.BaseResponse{data=dto.AdvanceListItemResponse}
+// @Failure      400 {object} dto.BaseResponse
+// @Failure      401 {object} dto.BaseResponse
+// @Failure      403 {object} dto.BaseResponse
+// @Failure      404 {object} dto.BaseResponse
+// @Failure      409 {object} dto.BaseResponse
+// @Failure      500 {object} dto.BaseResponse
+// @Router       /api/v1/advances/{id}/submit [post]
+func (h *AdvanceHandler) Submit(c *gin.Context) {
+	userID, role, ok := getActor(c)
+	if !ok {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+	var uri dto.URIParam
+	if err := c.ShouldBindUri(&uri); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	item, err := h.service.Submit(c.Request.Context(), userID, role, uri.ID)
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.OK(c, dto.ToAdvanceListItemResponse(*item))
+}
+
 func NewAdvanceHandler(svc advanceService) *AdvanceHandler { return &AdvanceHandler{service: svc} }
+
+// Revisions godoc
+// @Summary      List submitted advance revisions
+// @Description  Returns only SUBMIT snapshots in submission order, numbered from revision 1. CREATE and UPDATE events do not count as revisions. Never-submitted Advances return an empty array. Uses the same current Project access and private-DRAFT visibility as GET detail. Historical purpose and exact monetary text come from immutable snapshots.
+// @Tags         advances
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "Advance ID" minimum(1)
+// @Success      200 {object} dto.BaseResponse{data=[]dto.AdvanceRevisionResponse}
+// @Failure      400 {object} dto.BaseResponse
+// @Failure      401 {object} dto.BaseResponse
+// @Failure      403 {object} dto.BaseResponse
+// @Failure      404 {object} dto.BaseResponse
+// @Failure      500 {object} dto.BaseResponse
+// @Router       /api/v1/advances/{id}/revisions [get]
+func (h *AdvanceHandler) Revisions(c *gin.Context) {
+	userID, role, ok := getActor(c)
+	if !ok {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+	var uri dto.URIParam
+	if err := c.ShouldBindUri(&uri); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	items, err := h.service.Revisions(c.Request.Context(), userID, role, uri.ID)
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	response := make([]dto.AdvanceRevisionResponse, 0, len(items))
+	for _, item := range items {
+		response = append(response, dto.ToAdvanceRevisionResponse(item))
+	}
+	dto.OK(c, response)
+}
 
 // Create godoc
 // @Summary      Create an advance draft
