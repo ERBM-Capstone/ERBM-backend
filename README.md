@@ -10,9 +10,10 @@ REST API สำหรับ **Expense Reimbursement and Bill Management System (
 - จัดการพนักงาน สร้างหลายรายการในคำขอเดียว และปิดใช้งานบัญชีเมื่อพ้นสภาพพนักงาน
 - จัดการโครงการ งบประมาณ PM และ PC พร้อมสิทธิ์การดู แก้ไข และปิดโครงการ
 - ดูรายการ Advance และสร้าง DRAFT พร้อมรหัสแยกตาม Project และประวัติการสร้าง
+- ส่ง Advance ให้ PM และดู snapshot ของแต่ละรอบที่ส่ง พร้อมเลข revision
 - ดูเอกสาร API ผ่าน Swagger UI
 
-Advance มี API ดูรายการและสร้าง DRAFT แล้ว รายละเอียดอยู่ใน [GET Advances](docs/api/advance-list.md) และ [POST Advances](docs/api/advance-create.md) ส่วนการส่งอนุมัติ การเบิกจ่าย Expense, OCR และการปิดเงินทดรองจ่ายยังเป็นงานถัดไป
+Advance รองรับดูรายการ สร้าง ดูรายละเอียด แก้ไข DRAFT ส่งให้ PM และดู revisions แล้ว ดู [รายการ](docs/api/advance-list.md), [สร้าง](docs/api/advance-create.md), [รายละเอียด/แก้ไข](docs/api/advance-detail.md) และ [Submit/Revisions](docs/api/advance-submit-revisions.md) ส่วน PM review, การเบิกจ่าย Expense, OCR และการปิดเงินทดรองจ่ายยังเป็นงานถัดไป
 
 ## เทคโนโลยี
 
@@ -213,6 +214,10 @@ Path ทั้งหมดในตารางมี prefix `/api/v1`:
 | `PATCH` | `/projects/{id}`                    | แก้ไขหรือปิดโครงการตามสิทธิ์      | ADMIN, PM, PC             |
 | `GET`   | `/advances`                         | ดู Advance ตามสิทธิ์ พร้อมรหัสและผู้ขอ | ADMIN, PM, PC, ACCOUNTING |
 | `POST`  | `/advances`                         | สร้าง Advance DRAFT ในโครงการที่ได้รับมอบหมาย | PC |
+| `GET`   | `/advances/{id}`                    | ดูรายละเอียด Advance ตามสิทธิ์ | ADMIN, PM, PC, ACCOUNTING |
+| `PATCH` | `/advances/{id}`                    | แก้ไข Draft หรือคำขอที่ถูกส่งกลับ | PC |
+| `POST`  | `/advances/{id}/submit`             | ส่ง Draft ให้ PM พิจารณา | PC |
+| `GET`   | `/advances/{id}/revisions`          | ดู snapshot และเลข revision ของแต่ละรอบที่ส่ง | ADMIN, PM, PC, ACCOUNTING |
 
 การดูหรือแก้ไขโครงการยังตรวจสิทธิ์ตามสมาชิกและ PM ของโครงการใน service ตามกฎด้านบน ดู payload และ HTTP status เพิ่มเติมได้ใน Swagger UI
 

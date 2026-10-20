@@ -1,0 +1,175 @@
+{
+  "info": {
+    "_postman_id": "20261018-1de8a4e1-9fd5-493d-ac55-4fc0b3b4636d",
+    "name": "ERBM Advance API",
+    "description": "Advance API collection for the ERBM backend. Set baseUrl, accessToken, and projectId before use. Create Advance saves advanceId for detail, editing, submission and revision history. Submit requires the PC creator who is still assigned to the Project.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "projectId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "advanceId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "List Advances",
+      "request": {
+        "method": "GET",
+        "description": "ADMIN and ACCOUNTING can list every accessible Advance. PM sees managed Projects; PC sees assigned Projects. DRAFT records remain visible only to their creator.",
+        "url": "{{baseUrl}}/advances?page=1&page_size=20"
+      },
+      "response": []
+    },
+    {
+      "name": "Create Advance (PC)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('returns Created', () => pm.response.to.have.status(201));",
+              "pm.test('returns an advance ID', () => pm.expect(body.data?.id).to.be.a('number'));",
+              "if (body.data?.id) {",
+              "  pm.collectionVariables.set('advanceId', String(body.data.id));",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "description": "Requires the authenticated PC to be the Project's assigned coordinator. On a 201 response, the test script stores data.id in advanceId.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"project_id\": {{projectId}},\n  \"purpose\": \"ค่าเดินทางและที่พัก\",\n  \"amount\": \"15000.00\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/advances"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Advance by ID",
+      "request": {
+        "method": "GET",
+        "description": "Uses advanceId. DRAFT records are visible only to the creator. PM and PC also require current Project membership.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}"
+      },
+      "response": []
+    },
+    {
+      "name": "Update Advance (PC creator)",
+      "request": {
+        "method": "PATCH",
+        "description": "Uses advanceId. Only the PC creator who remains assigned to the Project can update a DRAFT or RETURNED_FOR_REVISION Advance. Omit purpose or amount to retain its current value.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purpose\": \"ค่าเดินทางและที่พัก (ปรับปรุง)\",\n  \"amount\": \"12000.00\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/advances/{{advanceId}}"
+      },
+      "response": []
+    },
+    {
+      "name": "Submit Advance (PC)",
+      "request": {
+        "method": "POST",
+        "description": "No body required. Submits DRAFT to PENDING_PM_APPROVAL and saves an immutable revision. Returned requests must be edited to DRAFT first. Repeated submission returns 409.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/submit"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('awaits PM approval', () => pm.expect(body.data?.status).to.eql('PENDING_PM_APPROVAL'));",
+              "pm.test('has submission time', () => pm.expect(body.data?.submitted_at).to.be.a('string'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "List Submitted Revisions",
+      "request": {
+        "method": "GET",
+        "description": "Returns only submitted rounds, numbered from revision 1 per Advance, with immutable purpose/amount snapshots. CREATE and UPDATE events do not count. An unsubmitted Draft returns []. Same access and private-DRAFT rules as GET detail.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/revisions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('returns revisions array', () => pm.expect(body.data).to.be.an('array'));",
+              "if (Array.isArray(body.data)) {",
+              "  body.data.forEach((item, index) => {",
+              "    pm.test('revision ' + (index + 1), () => pm.expect(item.revision).to.eql(index + 1));",
+              "    pm.test('exact monetary text', () => pm.expect(item.snapshot.amount).to.be.a('string'));",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}
