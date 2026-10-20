@@ -23,7 +23,7 @@ import (
 
 // @license.name  MIT
 
-// @host      localhost:8080
+// Omit host and schemes so Swagger UI uses the origin serving the documentation.
 // @BasePath  /
 
 // @securityDefinitions.apikey BearerAuth

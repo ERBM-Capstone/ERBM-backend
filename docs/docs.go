@@ -1666,12 +1666,6 @@ const docTemplate = `{
                 },
                 "snapshot": {
                     "$ref": "#/definitions/dto.AdvanceRevisionSnapshotResponse"
-                },
-                "submitted_at": {
-                    "type": "string"
-                },
-                "submitted_by": {
-                    "type": "integer"
                 }
             }
         },
@@ -1685,12 +1679,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "15000.00"
                 },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "integer"
-                },
                 "id": {
                     "type": "integer"
                 },
@@ -1702,12 +1690,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/model.AdvanceStatus"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "integer"
                 }
             }
         },
@@ -2068,7 +2050,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8080",
+	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "ERBM API",

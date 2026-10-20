@@ -52,10 +52,6 @@ definitions:
         type: integer
       snapshot:
         $ref: '#/definitions/dto.AdvanceRevisionSnapshotResponse'
-      submitted_at:
-        type: string
-      submitted_by:
-        type: integer
     type: object
   dto.AdvanceRevisionSnapshotResponse:
     properties:
@@ -64,10 +60,6 @@ definitions:
       amount:
         example: "15000.00"
         type: string
-      created_at:
-        type: string
-      created_by:
-        type: integer
       id:
         type: integer
       project_id:
@@ -76,10 +68,6 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/model.AdvanceStatus'
-      updated_at:
-        type: string
-      updated_by:
-        type: integer
     type: object
   dto.BaseResponse:
     properties:
@@ -322,7 +310,6 @@ definitions:
     x-enum-varnames:
     - ProjectStatusActive
     - ProjectStatusClosed
-host: localhost:8080
 info:
   contact:
     email: support@your-org.com

@@ -13,7 +13,6 @@
         },
         "version": "1.0"
     },
-    "host": "localhost:8080",
     "basePath": "/",
     "paths": {
         "/api/v1/advances": {
@@ -1660,12 +1659,6 @@
                 },
                 "snapshot": {
                     "$ref": "#/definitions/dto.AdvanceRevisionSnapshotResponse"
-                },
-                "submitted_at": {
-                    "type": "string"
-                },
-                "submitted_by": {
-                    "type": "integer"
                 }
             }
         },
@@ -1679,12 +1672,6 @@
                     "type": "string",
                     "example": "15000.00"
                 },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "integer"
-                },
                 "id": {
                     "type": "integer"
                 },
@@ -1696,12 +1683,6 @@
                 },
                 "status": {
                     "$ref": "#/definitions/model.AdvanceStatus"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "updated_by": {
-                    "type": "integer"
                 }
             }
         },
