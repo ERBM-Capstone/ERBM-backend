@@ -75,13 +75,13 @@
       "item": [
         {
           "name": "Create project (ADMIN, PM, PC)",
-          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ERBM rollout\",\n  \"description\": \"Initial rollout project\",\n  \"budget\": \"100000.00\",\n  \"start_date\": \"2026-10-01\",\n  \"end_date\": \"2026-12-31\",\n  \"pm_user_id\": 1,\n  \"pc_user_id\": 2\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects" }
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ERBM rollout\",\n  \"description\": \"Initial rollout project\",\n  \"start_date\": \"2026-10-01\",\n  \"end_date\": \"2026-12-31\",\n  \"pm_user_id\": 1,\n  \"pc_user_id\": 2\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects" }
         },
         { "name": "List projects", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/projects?page=1&page_size=20&status=ACTIVE" } },
         { "name": "Get project", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/projects/{{projectId}}" } },
         {
           "name": "Update project and assign PC (ADMIN or project PM)",
-          "request": { "method": "PATCH", "description": "pc_user_id is one positive user ID. Omit it to preserve the PC assignment, or send null to remove it. Assigned PCs may update only name and description.", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ERBM rollout - phase 1\",\n  \"budget\": \"120000.00\",\n  \"pc_user_id\": 2\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects/{{projectId}}" }
+          "request": { "method": "PATCH", "description": "pc_user_id is one positive user ID. Omit it to preserve the PC assignment, or send null to remove it. Assigned PCs may update only name and description.", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ERBM rollout - phase 1\",\n  \"pc_user_id\": 2\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects/{{projectId}}" }
         },
         {
           "name": "Remove project PC (ADMIN or project PM)",

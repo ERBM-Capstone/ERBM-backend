@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -22,9 +20,6 @@ const (
 	rolePC         = "PC"
 	roleAccounting = "ACCOUNTING"
 )
-
-// budgetPattern accepts up to 13 integer digits and 2 decimals to fit NUMERIC(15,2).
-var budgetPattern = regexp.MustCompile(`^\d{1,13}(\.\d{1,2})?$`)
 
 var projectCodeLocation = time.FixedZone("Asia/Bangkok", 7*60*60)
 
@@ -112,11 +107,6 @@ func prepareProjectForCreate(userID int64, role string, req *dto.CreateProjectRe
 		return nil, err
 	}
 
-	budget, err := normalizeBudget(req.Budget)
-	if err != nil {
-		return nil, err
-	}
-
 	startDate, err := parseProjectDate(req.StartDate)
 	if err != nil {
 		return nil, err
@@ -138,7 +128,6 @@ func prepareProjectForCreate(userID int64, role string, req *dto.CreateProjectRe
 	return &model.Project{
 		Name:        name,
 		Description: req.Description,
-		Budget:      budget,
 		StartDate:   startDate,
 		EndDate:     endDate,
 		Status:      model.ProjectStatusActive,
@@ -306,7 +295,7 @@ func authorizeProjectUpdate(project *model.Project, userID int64, role string, r
 	if role != roleAdmin && !isProjectPM && !isProjectPC {
 		return dto.ErrForbidden
 	}
-	if isProjectPC && (req.Budget != nil || req.StartDate != nil || req.EndDate != nil ||
+	if isProjectPC && (req.StartDate != nil || req.EndDate != nil ||
 		req.PMUserID != nil || req.HasPCUserID() || req.Status != nil) {
 		return dto.ErrForbidden
 	}
@@ -331,13 +320,6 @@ func prepareProjectUpdates(project *model.Project, userID int64, req *dto.Update
 	}
 	if req.Description != nil {
 		updates["description"] = *req.Description
-	}
-	if req.Budget != nil {
-		budget, err := normalizeBudget(*req.Budget)
-		if err != nil {
-			return nil, err
-		}
-		updates["budget"] = budget
 	}
 	startDate, endDate := project.StartDate, project.EndDate
 	if req.StartDate != nil {
@@ -493,18 +475,6 @@ func normalizeProjectName(value string) (string, error) {
 		return "", dto.ErrBadRequest
 	}
 	return name, nil
-}
-
-func normalizeBudget(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	if !budgetPattern.MatchString(value) {
-		return "", dto.ErrBadRequest
-	}
-	amount, err := strconv.ParseFloat(value, 64)
-	if err != nil || amount <= 0 {
-		return "", dto.ErrBadRequest
-	}
-	return value, nil
 }
 
 func validateProjectDateRange(startDate, endDate *time.Time) error {

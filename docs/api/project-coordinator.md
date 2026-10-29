@@ -13,7 +13,6 @@ single optional `pc_user_id`:
 ```json
 {
   "name": "Project A",
-  "budget": "1000.00",
   "pm_user_id": 100,
   "pc_user_id": 25
 }

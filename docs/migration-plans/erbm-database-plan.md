@@ -285,7 +285,6 @@ Index เดิม: `idx_users_status(status)`; ยังไม่มี session
 | `project_code` | VARCHAR(50) | ไม่ | Service สร้าง PRJ-{ปี ค.ศ. เวลาไทย}-{เลขอย่างน้อย 6 หลัก}; UNIQUE index บน UPPER(project_code) |
 | `name` | VARCHAR(255) | ไม่ | ไม่มี |
 | `description` | TEXT | ได้ | NULL |
-| `budget` | NUMERIC(15,2) | ไม่ | CHECK budget > 0 |
 | `start_date` | DATE | ได้ | NULL |
 | `end_date` | DATE | ได้ | NULL |
 | `status` | VARCHAR(20) | ไม่ | ACTIVE; CHECK ACTIVE/CLOSED |
@@ -299,8 +298,8 @@ Index เดิม: `idx_users_status(status)`; ยังไม่มี session
 | `updated_at` | TIMESTAMPTZ | ไม่ | NOW() |
 
 มี date-range CHECK, `uq_projects_project_code`, `idx_projects_pm_user_id`,
-nonunique `idx_projects_pc_user_id`, `idx_projects_status` และ budget เป็น reference ที่ funds เกินได้
-ไม่มี constraint จำกัดยอด Advance/Expense ตาม Project budget
+nonunique `idx_projects_pc_user_id` และ `idx_projects_status`
+Project ไม่เก็บงบประมาณ และไม่มี constraint จำกัดยอด Advance/Expense ตามงบของ Project
 
 `pm_user_id` ต้องมีค่าและ `pc_user_id` เป็น nullable FK ใน `projects` โดยตรง
 ไม่มี `project_coordinators` table และไม่มี unique constraint บน PM/PC FK

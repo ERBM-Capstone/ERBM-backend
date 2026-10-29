@@ -128,8 +128,6 @@ definitions:
     type: object
   dto.CreateProjectRequest:
     properties:
-      budget:
-        type: string
       description:
         type: string
       end_date:
@@ -147,7 +145,6 @@ definitions:
       start_date:
         type: string
     required:
-    - budget
     - name
     type: object
   dto.DeactivateEmployeeRequest:
@@ -190,8 +187,6 @@ definitions:
     type: object
   dto.ProjectResponse:
     properties:
-      budget:
-        type: string
       description:
         type: string
       end_date:
@@ -263,8 +258,6 @@ definitions:
     type: object
   dto.UpdateProjectRequest:
     properties:
-      budget:
-        type: string
       description:
         type: string
       end_date:
@@ -1173,7 +1166,7 @@ paths:
         has at most one PC. Optional pc_user_id accepts one positive user ID; the
         same PC may coordinate multiple projects. ADMIN and PC must send pm_user_id.
         A PM creator becomes its PM; a PC creator becomes its sole PC and cannot assign
-        another PC at creation. budget is a decimal string such as "1000.00".'
+        another PC at creation.'
       parameters:
       - description: Create project payload
         in: body

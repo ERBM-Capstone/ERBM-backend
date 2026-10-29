@@ -34,10 +34,14 @@ func TestSwaggerUsesServingOrigin(t *testing.T) {
 			}
 
 			var document struct {
-				Host     string                                `json:"host"`
-				Schemes  []string                              `json:"schemes"`
-				BasePath string                                `json:"basePath"`
-				Paths    map[string]map[string]json.RawMessage `json:"paths"`
+				Host        string                                `json:"host"`
+				Schemes     []string                              `json:"schemes"`
+				BasePath    string                                `json:"basePath"`
+				Paths       map[string]map[string]json.RawMessage `json:"paths"`
+				Definitions map[string]struct {
+					Properties map[string]json.RawMessage `json:"properties"`
+					Required   []string                   `json:"required"`
+				} `json:"definitions"`
 			}
 			if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil {
 				t.Fatalf("decode Swagger document: %v", err)
@@ -50,6 +54,20 @@ func TestSwaggerUsesServingOrigin(t *testing.T) {
 			}
 			if _, exists := document.Paths["/api/v1/auth/login"]["post"]; !exists {
 				t.Error("Swagger must expose POST /api/v1/auth/login without duplicating the API prefix")
+			}
+			for _, name := range []string{"dto.CreateProjectRequest", "dto.UpdateProjectRequest", "dto.ProjectResponse"} {
+				schema, exists := document.Definitions[name]
+				if !exists {
+					t.Fatalf("missing project schema %s", name)
+				}
+				if _, exists := schema.Properties["budget"]; exists {
+					t.Errorf("%s still exposes the removed budget field", name)
+				}
+				for _, field := range schema.Required {
+					if field == "budget" {
+						t.Errorf("%s still requires the removed budget field", name)
+					}
+				}
 			}
 		})
 	}
