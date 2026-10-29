@@ -10,15 +10,13 @@ const (
 	ProjectStatusClosed ProjectStatus = "CLOSED"
 )
 
-// Project groups the funds of a project. Budget is stored as a decimal string
-// so the NUMERIC value from PostgreSQL is never rounded through float64.
+// Project groups the funds of a project.
 // ProjectCode is assigned once as PRJ-{Gregorian year in Asia/Bangkok}-{number}.
 type Project struct {
 	ID          int64
 	ProjectCode string
 	Name        string
 	Description *string
-	Budget      string
 	StartDate   *time.Time
 	EndDate     *time.Time
 	Status      ProjectStatus

@@ -4,7 +4,6 @@ CREATE TABLE projects (
     project_code    VARCHAR(50)   NOT NULL,
     name            VARCHAR(255)  NOT NULL,
     description     TEXT,
-    budget          NUMERIC(15,2) NOT NULL CHECK (budget > 0),
     start_date      DATE,
     end_date        DATE,
 
@@ -38,7 +37,6 @@ CREATE TABLE project_code_counters (
 COMMENT ON COLUMN projects.project_code IS
     'Immutable server-generated code: PRJ-{Gregorian year in Asia/Bangkok}-{number, minimum 6 digits}';
 
-COMMENT ON COLUMN projects.budget IS 'reference only, funds may exceed it';
 COMMENT ON COLUMN projects.status IS 'ACTIVE, CLOSED (closing is permanent)';
 
 COMMENT ON COLUMN projects.pc_user_id IS

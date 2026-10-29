@@ -1300,7 +1300,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a project with a server-generated project_code: PRJ-{Gregorian year in Asia/Bangkok}-{number, minimum 6 digits}, starting at 000001 each year. Clients do not send project_code; a supplied value is ignored. A project has at most one PC. Optional pc_user_id accepts one positive user ID; the same PC may coordinate multiple projects. ADMIN and PC must send pm_user_id. A PM creator becomes its PM; a PC creator becomes its sole PC and cannot assign another PC at creation. budget is a decimal string such as \"1000.00\".",
+                "description": "Creates a project with a server-generated project_code: PRJ-{Gregorian year in Asia/Bangkok}-{number, minimum 6 digits}, starting at 000001 each year. Clients do not send project_code; a supplied value is ignored. A project has at most one PC. Optional pc_user_id accepts one positive user ID; the same PC may coordinate multiple projects. ADMIN and PC must send pm_user_id. A PM creator becomes its PM; a PC creator becomes its sole PC and cannot assign another PC at creation.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1775,13 +1775,9 @@ const docTemplate = `{
         "dto.CreateProjectRequest": {
             "type": "object",
             "required": [
-                "budget",
                 "name"
             ],
             "properties": {
-                "budget": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -1867,9 +1863,6 @@ const docTemplate = `{
         "dto.ProjectResponse": {
             "type": "object",
             "properties": {
-                "budget": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -1974,9 +1967,6 @@ const docTemplate = `{
         "dto.UpdateProjectRequest": {
             "type": "object",
             "properties": {
-                "budget": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },

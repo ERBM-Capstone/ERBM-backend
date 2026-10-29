@@ -10,6 +10,7 @@
 coverage.*
 /tests/*
 !/tests/swagger_test.go
+!/tests/project_contract_test.go
 
 # Temporary files and logs
 /tmp/

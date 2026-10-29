@@ -21,3 +21,4 @@ type Employee struct {
 func (e Employee) IsActive() bool {
 	return e.EmploymentEndDate == nil
 }
+
