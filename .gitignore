@@ -8,9 +8,7 @@
 # *_test.go
 *.out
 coverage.*
-/tests/*
-!/tests/swagger_test.go
-!/tests/project_contract_test.go
+/tests/
 
 # Temporary files and logs
 /tmp/

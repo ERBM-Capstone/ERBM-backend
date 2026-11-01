@@ -10,10 +10,13 @@ REST API สำหรับ **Expense Reimbursement and Bill Management System (
 - จัดการพนักงาน สร้างหลายรายการในคำขอเดียว และปิดใช้งานบัญชีเมื่อพ้นสภาพพนักงาน
 - จัดการโครงการ PM และ PC พร้อมสิทธิ์การดู แก้ไข และปิดโครงการ
 - ดูรายการ Advance และสร้าง DRAFT พร้อมรหัสแยกตาม Project และประวัติการสร้าง
-- ส่ง Advance ให้ PM และดู snapshot ของแต่ละรอบที่ส่ง พร้อมเลข revision
+- ส่ง Advance ให้ PM และดูข้อมูลแต่ละรอบที่ส่งพร้อมเลข revision ผ่าน history
+- PM ของโครงการอนุมัติหรือส่ง Advance กลับแก้ไขพร้อมเหตุผล โดยเก็บ audit ใน transaction เดียวกัน
+- ดูประวัติการดำเนินการของ Advance พร้อมผู้ทำ สถานะก่อน–หลัง เวลา และเหตุผลส่งกลับ
+- ดูรายการงานผ่าน Advance status filter เช่น คำขอรอ PM อนุมัติ หรือคำขอที่ส่งกลับให้ PC แก้ไข
 - ดูเอกสาร API ผ่าน Swagger UI
 
-Advance รองรับดูรายการ สร้าง ดูรายละเอียด แก้ไข DRAFT ส่งให้ PM และดู revisions แล้ว ดู [รายการ](docs/api/advance-list.md), [สร้าง](docs/api/advance-create.md), [รายละเอียด/แก้ไข](docs/api/advance-detail.md) และ [Submit/Revisions](docs/api/advance-submit-revisions.md) ส่วน PM review, การเบิกจ่าย Expense, OCR และการปิดเงินทดรองจ่ายยังเป็นงานถัดไป
+Advance รองรับดูรายการ สร้าง ดูรายละเอียด แก้ไข DRAFT ส่งให้ PM ดูประวัติพร้อมข้อมูลแต่ละรอบที่ส่ง และ PM อนุมัติ/ส่งกลับแก้ไขแล้ว ดู [รายการ](docs/api/advance-list.md), [สร้าง](docs/api/advance-create.md), [รายละเอียด/แก้ไข](docs/api/advance-detail.md), [Submit](docs/api/advance-submit-revisions.md), [PM review](docs/api/advance-pm-review.md) และ [History](docs/api/advance-history.md) ส่วนการสร้างเอกสาร การเบิกจ่าย Expense, OCR และการปิดเงินทดรองจ่ายยังเป็นงานถัดไป
 
 ## เทคโนโลยี
 
@@ -217,9 +220,13 @@ Path ทั้งหมดในตารางมี prefix `/api/v1`:
 | `GET`   | `/advances/{id}`                    | ดูรายละเอียด Advance ตามสิทธิ์ | ADMIN, PM, PC, ACCOUNTING |
 | `PATCH` | `/advances/{id}`                    | แก้ไข Draft หรือคำขอที่ถูกส่งกลับ | PC |
 | `POST`  | `/advances/{id}/submit`             | ส่ง Draft ให้ PM พิจารณา | PC |
-| `GET`   | `/advances/{id}/revisions`          | ดู snapshot และเลข revision ของแต่ละรอบที่ส่ง | ADMIN, PM, PC, ACCOUNTING |
+| `POST`  | `/advances/{id}/approve`            | PM ของโครงการอนุมัติคำขอที่รอตรวจ | PM |
+| `POST`  | `/advances/{id}/return`             | PM ของโครงการส่งคำขอกลับแก้ไขพร้อมเหตุผล | PM |
+| `GET`   | `/advances/{id}/history`            | ดูประวัติ เหตุผลส่งกลับ และ revision/amount/purpose ของแต่ละรอบที่ส่ง | ADMIN, PM, PC, ACCOUNTING |
 
 การดูหรือแก้ไขโครงการยังตรวจสิทธิ์ตามสมาชิกและ PM ของโครงการใน service ตามกฎด้านบน ดู payload และ HTTP status เพิ่มเติมได้ใน Swagger UI
+
+หน้ารายการงานใช้ `GET /api/v1/advances` พร้อม `status` และ pagination เดิม เช่น PM เรียก `?status=PENDING_PM_APPROVAL` หรือ PC เรียก `?status=RETURNED_FOR_REVISION` โดย backend กรองสิทธิ์ตามโครงการให้อยู่แล้ว ดูตัวอย่างใน [Advance list](docs/api/advance-list.md)
 
 ### ตัวอย่างเข้าสู่ระบบ
 

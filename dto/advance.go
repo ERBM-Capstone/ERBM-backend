@@ -18,6 +18,10 @@ type UpdateAdvanceRequest struct {
 	Amount  *string `json:"amount" binding:"omitempty,min=1" example:"15000.00" extensions:"x-nullable"`
 }
 
+type ReturnAdvanceRequest struct {
+	Reason string `json:"reason" binding:"required" example:"กรุณาชี้แจงรายละเอียดค่าเดินทาง"`
+}
+
 // AdvanceListQuery contains Advance filters and pagination. The HTTP handler
 // applies paging defaults to omitted or zero page/page_size values.
 type AdvanceListQuery struct {
@@ -52,33 +56,6 @@ type AdvanceRequesterResponse struct {
 	UserID    int64  `json:"user_id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
-}
-
-type AdvanceRevisionResponse struct {
-	Revision int64 `json:"revision" example:"1"`
-
-	Snapshot AdvanceRevisionSnapshotResponse `json:"snapshot"`
-}
-
-// Use explicit DTO fields so new persistence fields cannot leak into history.
-type AdvanceRevisionSnapshotResponse struct {
-	ID          int64               `json:"id"`
-	AdvanceCode string              `json:"advance_code"`
-	ProjectID   int64               `json:"project_id"`
-	Purpose     string              `json:"purpose"`
-	Amount      string              `json:"amount" example:"15000.00"`
-	Status      model.AdvanceStatus `json:"status"`
-}
-
-func ToAdvanceRevisionResponse(item model.AdvanceRevision) AdvanceRevisionResponse {
-	a := item.Snapshot
-	return AdvanceRevisionResponse{
-		Revision: item.Revision,
-		Snapshot: AdvanceRevisionSnapshotResponse{
-			ID: a.ID, AdvanceCode: a.AdvanceCode, ProjectID: a.ProjectID, Purpose: a.Purpose,
-			Amount: a.Amount, Status: a.Status,
-		},
-	}
 }
 
 func ToAdvanceListItemResponse(item model.AdvanceListItem) AdvanceListItemResponse {

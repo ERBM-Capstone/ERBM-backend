@@ -34,6 +34,41 @@ Single-record reads and edits are documented in
   sequence per Project. Requester is the creator (`created_by`), joined to their
   current employee name. The complete Advance schema is created by migration 0005.
 
+## Frontend worklists
+
+Use this endpoint for both the general Advance list and status-filtered work
+screens. Project permissions are always enforced by the backend using the
+authenticated actor, including when no `project_id` is supplied.
+
+| Screen | Request | Access |
+| --- | --- | --- |
+| PM: requests awaiting approval | `GET /api/v1/advances?status=PENDING_PM_APPROVAL` | PM's currently managed Projects. |
+| PC: requests returned for revision | `GET /api/v1/advances?status=RETURNED_FOR_REVISION` | Projects where the PC is currently assigned. |
+| PC: own drafts | `GET /api/v1/advances?status=DRAFT` | Current assignment and creator-only visibility both apply. |
+| Accounting: approved Advances | `GET /api/v1/advances?status=APPROVED` | All Projects under current Accounting read permissions. |
+
+For example, the PM approval screen requests:
+
+```http
+GET /api/v1/advances?status=PENDING_PM_APPROVAL&page=1&page_size=20
+Authorization: Bearer <PM_access_token>
+```
+
+Responses keep the existing `success`, `message: "Advances retrieved"`, `data`
+array and `meta` (`page`, `per_page`, `total`). Empty results return `data: []`;
+monetary values remain exact decimal strings. These screens use the same
+existing filters and sorting as the general list. The query parameter is
+`status`; no separate `type` parameter or worklist endpoint is needed.
+
+Opening a selected item uses `GET /api/v1/advances/{id}` to load its current
+details. List membership does not grant permission to perform an action;
+each action must validate role, Project assignment and current workflow state
+in its own service. PM approval and return are documented in
+[PM review](advance-pm-review.md). Read return reasons and action history with
+[GET /api/v1/advances/{id}/history](advance-history.md). Confirmation of
+disbursement requires its own action; filtering the list alone does not
+implement it.
+
 ## Implementation plan
 
 Preserve the existing migration/document changes in the checkout. Use the

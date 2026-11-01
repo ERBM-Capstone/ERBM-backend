@@ -1,5 +1,47 @@
 basePath: /
 definitions:
+  dto.AdvanceHistoryActorResponse:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  dto.AdvanceHistoryResponse:
+    properties:
+      action:
+        allOf:
+        - $ref: '#/definitions/model.AdvanceAction'
+        example: RETURN
+      actor:
+        $ref: '#/definitions/dto.AdvanceHistoryActorResponse'
+      amount:
+        example: "25000.00"
+        type: string
+        x-nullable: true
+      id:
+        type: integer
+      occurred_at:
+        type: string
+      previous_status:
+        allOf:
+        - $ref: '#/definitions/model.AdvanceStatus'
+        x-nullable: true
+      purpose:
+        type: string
+        x-nullable: true
+      reason:
+        type: string
+        x-nullable: true
+      resulting_status:
+        $ref: '#/definitions/model.AdvanceStatus'
+      revision:
+        example: 1
+        type: integer
+        x-nullable: true
+    type: object
   dto.AdvanceListItemResponse:
     properties:
       advance_code:
@@ -44,30 +86,6 @@ definitions:
         type: string
       user_id:
         type: integer
-    type: object
-  dto.AdvanceRevisionResponse:
-    properties:
-      revision:
-        example: 1
-        type: integer
-      snapshot:
-        $ref: '#/definitions/dto.AdvanceRevisionSnapshotResponse'
-    type: object
-  dto.AdvanceRevisionSnapshotResponse:
-    properties:
-      advance_code:
-        type: string
-      amount:
-        example: "15000.00"
-        type: string
-      id:
-        type: integer
-      project_id:
-        type: integer
-      purpose:
-        type: string
-      status:
-        $ref: '#/definitions/model.AdvanceStatus'
     type: object
   dto.BaseResponse:
     properties:
@@ -216,6 +234,14 @@ definitions:
     required:
     - email
     type: object
+  dto.ReturnAdvanceRequest:
+    properties:
+      reason:
+        example: กรุณาชี้แจงรายละเอียดค่าเดินทาง
+        type: string
+    required:
+    - reason
+    type: object
   dto.SetInitialPasswordRequest:
     properties:
       password:
@@ -279,6 +305,20 @@ definitions:
         - CLOSED
         type: string
     type: object
+  model.AdvanceAction:
+    enum:
+    - CREATE
+    - UPDATE
+    - SUBMIT
+    - APPROVE
+    - RETURN
+    type: string
+    x-enum-varnames:
+    - AdvanceActionCreate
+    - AdvanceActionUpdate
+    - AdvanceActionSubmit
+    - AdvanceActionApprove
+    - AdvanceActionReturn
   model.AdvanceStatus:
     enum:
     - DRAFT
@@ -317,10 +357,9 @@ info:
 paths:
   /api/v1/advances:
     get:
-      description: Lists visible Advances in THB. ADMIN and ACCOUNTING can read every
-        Project; PM sees managed Projects and PC sees assigned Projects. DRAFT is
-        visible only to its creator for every role. Visibility applies before pagination
-        and total count. Sorted by created_at DESC, id DESC.
+      description: |-
+        Lists visible Advances in THB. ADMIN and ACCOUNTING can read every Project; PM sees managed Projects and PC sees assigned Projects. DRAFT is visible only to its creator for every role. Visibility applies before pagination and total count. Sorted by created_at DESC, id DESC.
+        Use status=PENDING_PM_APPROVAL for the PM approval screen, status=RETURNED_FOR_REVISION for the PC revision screen, and status=APPROVED for the Accounting approved list. Each uses the same role-based Project visibility and pagination as the general Advance list.
       parameters:
       - description: Filter by accessible Project ID
         in: query
@@ -563,13 +602,72 @@ paths:
       summary: Update an advance draft
       tags:
       - advances
-  /api/v1/advances/{id}/revisions:
+  /api/v1/advances/{id}/approve:
+    post:
+      description: Only the Project's current PM can approve a PENDING_PM_APPROVAL
+        request. No body is required. Sets APPROVED, approved_at/by and updated_at/by;
+        preserves the submitted contents and writes an APPROVE audit event atomically.
+        Repeated or conflicting review returns 409. A closed Project cannot be changed.
+      parameters:
+      - description: Advance ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AdvanceListItemResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve an advance request
+      tags:
+      - advances
+  /api/v1/advances/{id}/history:
     get:
-      description: Returns only SUBMIT snapshots in submission order, numbered from
-        revision 1. CREATE and UPDATE events do not count as revisions. Never-submitted
-        Advances return an empty array. Uses the same current Project access and private-DRAFT
-        visibility as GET detail. Historical purpose and exact monetary text come
-        from immutable snapshots.
+      description: Returns all recorded workflow actions, newest first by occurred_at
+        DESC and event ID DESC, without pagination. Includes actor ID/current name,
+        previous/resulting status, nullable reason and event timestamp. SUBMIT events
+        include a per-Advance revision number starting at 1 in event-ID order, plus
+        the exact THB amount and purpose from that submission's immutable snapshot.
+        Revision, amount and purpose are null for other actions; missing snapshot
+        fields stay null. No full before/after snapshots are exposed. Uses the same
+        current Project access and private-DRAFT visibility as GET detail. An existing
+        Advance with no events returns an empty array. Reading history does not change
+        the Advance. Replaces the separate revisions endpoint.
       parameters:
       - description: Advance ID
         in: path
@@ -588,7 +686,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/dto.AdvanceRevisionResponse'
+                    $ref: '#/definitions/dto.AdvanceHistoryResponse'
                   type: array
               type: object
         "400":
@@ -613,7 +711,70 @@ paths:
             $ref: '#/definitions/dto.BaseResponse'
       security:
       - BearerAuth: []
-      summary: List submitted advance revisions
+      summary: List advance workflow history
+      tags:
+      - advances
+  /api/v1/advances/{id}/return:
+    post:
+      consumes:
+      - application/json
+      description: Only the Project's current PM can return a PENDING_PM_APPROVAL
+        request. A nonblank reason is required and trimmed before storage in the RETURN
+        audit event. Sets RETURNED_FOR_REVISION and updated_at/by while preserving
+        request contents and submission metadata. The change and audit commit together.
+        Other statuses or a closed Project return 409.
+      parameters:
+      - description: Advance ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      - description: Reason for returning the request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReturnAdvanceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.BaseResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AdvanceListItemResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.BaseResponse'
+      security:
+      - BearerAuth: []
+      summary: Return an advance request for revision
       tags:
       - advances
   /api/v1/advances/{id}/submit:

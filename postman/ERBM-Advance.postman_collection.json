@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "20261018-1de8a4e1-9fd5-493d-ac55-4fc0b3b4636d",
     "name": "ERBM Advance API",
-    "description": "Advance API collection for the ERBM backend. Set baseUrl, accessToken, and projectId before use. Create Advance saves advanceId for detail, editing, submission and revision history. Submit requires the PC creator who is still assigned to the Project.",
+    "description": "Advance API collection for the ERBM backend. Set baseUrl, accessToken, and projectId before use. Create Advance saves advanceId for detail, editing, submission and combined action/submission history. Submit requires the PC creator who is still assigned to the Project.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -38,6 +38,33 @@
     ]
   },
   "item": [
+    {
+      "name": "Advances Pending PM Approval (PM)",
+      "request": {
+        "method": "GET",
+        "description": "Use a PM accessToken for the approval screen. The existing Advance list filters PENDING_PM_APPROVAL by Projects currently managed by that PM. Includes standard pagination; an empty list returns data: [] and total: 0.",
+        "url": "{{baseUrl}}/advances?status=PENDING_PM_APPROVAL&page=1&page_size=20"
+      },
+      "response": []
+    },
+    {
+      "name": "Advances Returned for Revision (PC)",
+      "request": {
+        "method": "GET",
+        "description": "Use a PC accessToken. Lists RETURNED_FOR_REVISION Advances in Projects where that PC is currently assigned. Read return reasons with GET /advances/{id}/history; review actions use their corresponding POST APIs.",
+        "url": "{{baseUrl}}/advances?status=RETURNED_FOR_REVISION&page=1&page_size=20"
+      },
+      "response": []
+    },
+    {
+      "name": "Approved Advances (Accounting)",
+      "request": {
+        "method": "GET",
+        "description": "Use an ACCOUNTING accessToken. Lists approved Advances using the existing status filter. Confirmation of disbursement is a separate action.",
+        "url": "{{baseUrl}}/advances?status=APPROVED&page=1&page_size=20"
+      },
+      "response": []
+    },
     {
       "name": "List Advances",
       "request": {
@@ -144,11 +171,44 @@
       "response": []
     },
     {
-      "name": "List Submitted Revisions",
+      "name": "Approve Advance (PM)",
+      "request": {
+        "method": "POST",
+        "description": "Use the Project's current PM accessToken. No body required. Only PENDING_PM_APPROVAL can become APPROVED. Repeated or conflicting review returns 409.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/approve"
+      },
+      "response": []
+    },
+    {
+      "name": "Return Advance for Revision (PM)",
+      "request": {
+        "method": "POST",
+        "description": "Use the Project's current PM accessToken. Requires a nonblank reason. Only PENDING_PM_APPROVAL can become RETURNED_FOR_REVISION. The reason and action are saved atomically in audit history.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"กรุณาชี้แจงรายละเอียดค่าเดินทาง\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/advances/{{advanceId}}/return"
+      },
+      "response": []
+    },
+    {
+      "name": "List Advance Action History",
       "request": {
         "method": "GET",
-        "description": "Returns only submitted rounds, numbered from revision 1 per Advance, with immutable purpose/amount snapshots. CREATE and UPDATE events do not count. An unsubmitted Draft returns []. Same access and private-DRAFT rules as GET detail.",
-        "url": "{{baseUrl}}/advances/{{advanceId}}/revisions"
+        "description": "Uses advanceId. Returns every workflow action, newest first by occurred_at and event ID. Includes actor, previous/resulting status, reason and timestamp. SUBMIT also includes revision (numbered from 1 per Advance in event-ID order), amount and purpose from that round. Submission fields are null for other actions; missing snapshot fields remain null. Same Project assignment and private-DRAFT policy as GET detail. No pagination or full audit snapshots. Replaces the separate revisions endpoint.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/history"
       },
       "event": [
         {
@@ -158,11 +218,22 @@
             "exec": [
               "pm.test('returns OK', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('returns revisions array', () => pm.expect(body.data).to.be.an('array'));",
+              "pm.test('returns history array', () => pm.expect(body.data).to.be.an('array'));",
               "if (Array.isArray(body.data)) {",
-              "  body.data.forEach((item, index) => {",
-              "    pm.test('revision ' + (index + 1), () => pm.expect(item.revision).to.eql(index + 1));",
-              "    pm.test('exact monetary text', () => pm.expect(item.snapshot.amount).to.be.a('string'));",
+              "  body.data.forEach((item) => {",
+              "    pm.test('event fields', () => pm.expect(item).to.have.all.keys('id', 'action', 'actor', 'previous_status', 'resulting_status', 'reason', 'revision', 'amount', 'purpose', 'occurred_at'));",
+              "    pm.test('actor ID', () => pm.expect(item.actor.user_id).to.be.a('number'));",
+              "    if (item.action === 'SUBMIT') {",
+              "      pm.test('submission revision', () => pm.expect(item.revision).to.be.a('number').and.be.at.least(1));",
+              "      pm.test('submission purpose', () => pm.expect(item.purpose === null || typeof item.purpose === 'string').to.eql(true));",
+              "    } else {",
+              "      pm.test('no submission data for other actions', () => { pm.expect(item.revision).to.eql(null); pm.expect(item.purpose).to.eql(null); });",
+              "    }",
+              "    if (item.action === 'SUBMIT' && item.amount !== null) {",
+              "      pm.test('exact submitted amount', () => pm.expect(item.amount).to.be.a('string').and.match(/^[0-9]+\\.[0-9]{2}$/));",
+              "    } else {",
+              "      pm.test('nullable amount', () => pm.expect(item.amount).to.eql(null));",
+              "    }",
               "  });",
               "}"
             ]
