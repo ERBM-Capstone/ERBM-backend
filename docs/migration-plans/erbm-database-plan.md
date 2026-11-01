@@ -404,7 +404,7 @@ Nullable/default/ความสัมพันธ์ของ advances แล�
 ปัจจุบัน POST บันทึก CREATE, PATCH บันทึก UPDATE และ Submit บันทึก SUBMIT snapshot
 แล้ว ผู้ใช้ยืนยัน 19 ต.ค. 2026 ให้ GET revisions คืนเฉพาะรอบที่กด Submit พร้อม
 เลข revision เริ่ม 1 แยกต่อ Advance และ snapshot ของแต่ละรอบ; CREATE/UPDATE
-ไม่นับเป็นรอบที่ส่ง ดู [Submit/Revisions API](../api/advance-submit-revisions.md)
+ไม่นับเป็นรอบที่ส่ง ดู [Submit และประวัติแต่ละรอบ](../api/advance-submit-revisions.md)
 ใช้ event และ submission columns เดิมใน 0005 โดยไม่เพิ่มหรือรัน migration
 
 ใช้ common event columns ทั้ง 7 column ในหัวข้อ 4 และเพิ่ม:

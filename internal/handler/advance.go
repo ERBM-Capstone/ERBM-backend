@@ -14,7 +14,9 @@ type advanceService interface {
 	GetByID(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
 	Update(context.Context, int64, string, int64, *dto.UpdateAdvanceRequest) (*model.AdvanceListItem, error)
 	Submit(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
-	Revisions(context.Context, int64, string, int64) ([]model.AdvanceRevision, error)
+	Approve(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
+	Return(context.Context, int64, string, int64, *dto.ReturnAdvanceRequest) (*model.AdvanceListItem, error)
+	History(context.Context, int64, string, int64) ([]model.AdvanceHistoryItem, error)
 	List(context.Context, int64, string, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)
 	Create(context.Context, int64, string, *dto.CreateAdvanceRequest) (*model.AdvanceListItem, error)
 }
@@ -131,43 +133,6 @@ func (h *AdvanceHandler) Submit(c *gin.Context) {
 
 func NewAdvanceHandler(svc advanceService) *AdvanceHandler { return &AdvanceHandler{service: svc} }
 
-// Revisions godoc
-// @Summary      List submitted advance revisions
-// @Description  Returns only SUBMIT snapshots in submission order, numbered from revision 1. CREATE and UPDATE events do not count as revisions. Never-submitted Advances return an empty array. Uses the same current Project access and private-DRAFT visibility as GET detail. Historical purpose and exact monetary text come from immutable snapshots.
-// @Tags         advances
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id path int true "Advance ID" minimum(1)
-// @Success      200 {object} dto.BaseResponse{data=[]dto.AdvanceRevisionResponse}
-// @Failure      400 {object} dto.BaseResponse
-// @Failure      401 {object} dto.BaseResponse
-// @Failure      403 {object} dto.BaseResponse
-// @Failure      404 {object} dto.BaseResponse
-// @Failure      500 {object} dto.BaseResponse
-// @Router       /api/v1/advances/{id}/revisions [get]
-func (h *AdvanceHandler) Revisions(c *gin.Context) {
-	userID, role, ok := getActor(c)
-	if !ok {
-		dto.HandleError(c, dto.ErrUnauthorized)
-		return
-	}
-	var uri dto.URIParam
-	if err := c.ShouldBindUri(&uri); err != nil {
-		dto.HandleError(c, dto.ErrBadRequest)
-		return
-	}
-	items, err := h.service.Revisions(c.Request.Context(), userID, role, uri.ID)
-	if err != nil {
-		dto.HandleError(c, err)
-		return
-	}
-	response := make([]dto.AdvanceRevisionResponse, 0, len(items))
-	for _, item := range items {
-		response = append(response, dto.ToAdvanceRevisionResponse(item))
-	}
-	dto.OK(c, response)
-}
-
 // Create godoc
 // @Summary      Create an advance draft
 // @Description  PC assigned to an ACTIVE Project creates a DRAFT with a required positive THB amount. Codes use ADV-{project_code}-{per-project sequence}, assigned once at creation. An existing ACTIVE Advance does not block DRAFT creation. Creation, code allocation and audit event commit together. Requester is the authenticated creator.
@@ -207,6 +172,7 @@ func (h *AdvanceHandler) Create(c *gin.Context) {
 // List godoc
 // @Summary      List advances
 // @Description  Lists visible Advances in THB. ADMIN and ACCOUNTING can read every Project; PM sees managed Projects and PC sees assigned Projects. DRAFT is visible only to its creator for every role. Visibility applies before pagination and total count. Sorted by created_at DESC, id DESC.
+// @Description  Use status=PENDING_PM_APPROVAL for the PM approval screen, status=RETURNED_FOR_REVISION for the PC revision screen, and status=APPROVED for the Accounting approved list. Each uses the same role-based Project visibility and pagination as the general Advance list.
 // @Tags         advances
 // @Produce      json
 // @Security     BearerAuth

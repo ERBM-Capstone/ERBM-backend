@@ -29,7 +29,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Lists visible Advances in THB. ADMIN and ACCOUNTING can read every Project; PM sees managed Projects and PC sees assigned Projects. DRAFT is visible only to its creator for every role. Visibility applies before pagination and total count. Sorted by created_at DESC, id DESC.",
+                "description": "Lists visible Advances in THB. ADMIN and ACCOUNTING can read every Project; PM sees managed Projects and PC sees assigned Projects. DRAFT is visible only to its creator for every role. Visibility applies before pagination and total count. Sorted by created_at DESC, id DESC.\nUse status=PENDING_PM_APPROVAL for the PM approval screen, status=RETURNED_FOR_REVISION for the PC revision screen, and status=APPROVED for the Accounting approved list. Each uses the same role-based Project visibility and pagination as the general Advance list.",
                 "produces": [
                     "application/json"
                 ],
@@ -394,21 +394,104 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/advances/{id}/revisions": {
-            "get": {
+        "/api/v1/advances/{id}/approve": {
+            "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns only SUBMIT snapshots in submission order, numbered from revision 1. CREATE and UPDATE events do not count as revisions. Never-submitted Advances return an empty array. Uses the same current Project access and private-DRAFT visibility as GET detail. Historical purpose and exact monetary text come from immutable snapshots.",
+                "description": "Only the Project's current PM can approve a PENDING_PM_APPROVAL request. No body is required. Sets APPROVED, approved_at/by and updated_at/by; preserves the submitted contents and writes an APPROVE audit event atomically. Repeated or conflicting review returns 409. A closed Project cannot be changed.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "advances"
                 ],
-                "summary": "List submitted advance revisions",
+                "summary": "Approve an advance request",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Advance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AdvanceListItemResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/advances/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all recorded workflow actions, newest first by occurred_at DESC and event ID DESC, without pagination. Includes actor ID/current name, previous/resulting status, nullable reason and event timestamp. SUBMIT events include a per-Advance revision number starting at 1 in event-ID order, plus the exact THB amount and purpose from that submission's immutable snapshot. Revision, amount and purpose are null for other actions; missing snapshot fields stay null. No full before/after snapshots are exposed. Uses the same current Project access and private-DRAFT visibility as GET detail. An existing Advance with no events returns an empty array. Reading history does not change the Advance. Replaces the separate revisions endpoint.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "advances"
+                ],
+                "summary": "List advance workflow history",
                 "parameters": [
                     {
                         "minimum": 1,
@@ -433,7 +516,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/dto.AdvanceRevisionResponse"
+                                                "$ref": "#/definitions/dto.AdvanceHistoryResponse"
                                             }
                                         }
                                     }
@@ -461,6 +544,101 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/advances/{id}/return": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Only the Project's current PM can return a PENDING_PM_APPROVAL request. A nonblank reason is required and trimmed before storage in the RETURN audit event. Sets RETURNED_FOR_REVISION and updated_at/by while preserving request contents and submission metadata. The change and audit commit together. Other statuses or a closed Project return 409.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "advances"
+                ],
+                "summary": "Return an advance request for revision",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Advance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reason for returning the request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReturnAdvanceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AdvanceListItemResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/dto.BaseResponse"
                         }
@@ -1589,6 +1767,71 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.AdvanceHistoryActorResponse": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AdvanceHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.AdvanceAction"
+                        }
+                    ],
+                    "example": "RETURN"
+                },
+                "actor": {
+                    "$ref": "#/definitions/dto.AdvanceHistoryActorResponse"
+                },
+                "amount": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "25000.00"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "occurred_at": {
+                    "type": "string"
+                },
+                "previous_status": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.AdvanceStatus"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "purpose": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "reason": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "resulting_status": {
+                    "$ref": "#/definitions/model.AdvanceStatus"
+                },
+                "revision": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "example": 1
+                }
+            }
+        },
         "dto.AdvanceListItemResponse": {
             "type": "object",
             "properties": {
@@ -1654,42 +1897,6 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
-                }
-            }
-        },
-        "dto.AdvanceRevisionResponse": {
-            "type": "object",
-            "properties": {
-                "revision": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "snapshot": {
-                    "$ref": "#/definitions/dto.AdvanceRevisionSnapshotResponse"
-                }
-            }
-        },
-        "dto.AdvanceRevisionSnapshotResponse": {
-            "type": "object",
-            "properties": {
-                "advance_code": {
-                    "type": "string"
-                },
-                "amount": {
-                    "type": "string",
-                    "example": "15000.00"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "project_id": {
-                    "type": "integer"
-                },
-                "purpose": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/model.AdvanceStatus"
                 }
             }
         },
@@ -1909,6 +2116,18 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ReturnAdvanceRequest": {
+            "type": "object",
+            "required": [
+                "reason"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "กรุณาชี้แจงรายละเอียดค่าเดินทาง"
+                }
+            }
+        },
         "dto.SetInitialPasswordRequest": {
             "type": "object",
             "required": [
@@ -1996,6 +2215,23 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "model.AdvanceAction": {
+            "type": "string",
+            "enum": [
+                "CREATE",
+                "UPDATE",
+                "SUBMIT",
+                "APPROVE",
+                "RETURN"
+            ],
+            "x-enum-varnames": [
+                "AdvanceActionCreate",
+                "AdvanceActionUpdate",
+                "AdvanceActionSubmit",
+                "AdvanceActionApprove",
+                "AdvanceActionReturn"
+            ]
         },
         "model.AdvanceStatus": {
             "type": "string",

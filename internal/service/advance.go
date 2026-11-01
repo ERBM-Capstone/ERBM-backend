@@ -21,7 +21,8 @@ type advanceRepository interface {
 	GetByIDForUpdate(context.Context, *gorm.DB, int64) (*model.Advance, error)
 	Update(context.Context, *gorm.DB, *model.Advance) error
 	Submit(context.Context, *gorm.DB, *model.Advance) error
-	GetSubmissionHistory(context.Context, int64) (*model.AdvanceSubmissionHistory, error)
+	Review(context.Context, *gorm.DB, *model.Advance) error
+	GetHistory(context.Context, int64) (*model.AdvanceHistory, error)
 	List(context.Context, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)
 	GetProjectAccess(context.Context, int64, int64) (*model.AdvanceProjectAccess, error)
 	WithTx(context.Context, func(*gorm.DB) error) error
@@ -56,7 +57,9 @@ func normalizeAdvanceAmount(value string) (string, error) {
 }
 
 func (s *AdvanceService) Create(ctx context.Context, userID int64, role string, req *dto.CreateAdvanceRequest) (*model.AdvanceListItem, error) {
-
+	if userID <= 0 {
+		return nil, dto.ErrUnauthorized
+	}
 	if strings.ToUpper(strings.TrimSpace(role)) != rolePC {
 		return nil, dto.ErrForbidden
 	}
@@ -199,38 +202,6 @@ func authorizeAdvanceRead(item *model.AdvanceListItem, userID int64, role string
 	return nil
 }
 
-func (s *AdvanceService) Revisions(ctx context.Context, userID int64, role string, id int64) ([]model.AdvanceRevision, error) {
-
-	role = strings.ToUpper(strings.TrimSpace(role))
-	switch role {
-	case roleAdmin, roleAccounting, rolePM, rolePC:
-	default:
-		return nil, dto.ErrForbidden
-	}
-	if id <= 0 {
-		return nil, dto.ErrBadRequest
-	}
-	history, err := s.repo.GetSubmissionHistory(ctx, id)
-	if err != nil {
-		return nil, advanceDetailError(err)
-	}
-	if err := authorizeAdvanceRead(&history.Advance, userID, role); err != nil {
-		return nil, err
-	}
-	revisions := make([]model.AdvanceRevision, 0, len(history.Submissions))
-	for i, submission := range history.Submissions {
-		var snapshot model.Advance
-		if err := json.Unmarshal([]byte(submission.AfterData), &snapshot); err != nil {
-			return nil, dto.ErrInternalServer
-		}
-		revisions = append(revisions, model.AdvanceRevision{
-			Revision: int64(i + 1), SubmittedBy: submission.ActorUserID,
-			SubmittedAt: submission.OccurredAt, Snapshot: snapshot,
-		})
-	}
-	return revisions, nil
-}
-
 func (s *AdvanceService) Update(ctx context.Context, userID int64, role string, id int64, req *dto.UpdateAdvanceRequest) (*model.AdvanceListItem, error) {
 	if userID <= 0 {
 		return nil, dto.ErrUnauthorized
@@ -318,6 +289,9 @@ func (s *AdvanceService) Update(ctx context.Context, userID int64, role string, 
 }
 
 func (s *AdvanceService) Submit(ctx context.Context, userID int64, role string, id int64) (*model.AdvanceListItem, error) {
+	if userID <= 0 {
+		return nil, dto.ErrUnauthorized
+	}
 	if strings.ToUpper(strings.TrimSpace(role)) != rolePC {
 		return nil, dto.ErrForbidden
 	}
@@ -388,7 +362,7 @@ func (s *AdvanceService) Submit(ctx context.Context, userID int64, role string, 
 }
 
 func advanceDetailError(err error) error {
-	for _, known := range []error{dto.ErrAdvanceNotFound, dto.ErrForbidden, dto.ErrProjectClosed, dto.ErrAdvanceNotEditable, dto.ErrAdvanceNotSubmittable, dto.ErrBadRequest} {
+	for _, known := range []error{dto.ErrAdvanceNotFound, dto.ErrForbidden, dto.ErrProjectClosed, dto.ErrAdvanceNotEditable, dto.ErrAdvanceNotSubmittable, dto.ErrAdvanceNotReviewable, dto.ErrBadRequest} {
 		if errors.Is(err, known) {
 			return known
 		}

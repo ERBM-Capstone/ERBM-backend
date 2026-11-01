@@ -58,7 +58,10 @@ func (s *EmployeeService) Create(
 	userID int64,
 	req []EmployeeProvision,
 ) ([]*model.Employee, error) {
-	if userID <= 0 || len(req) == 0 {
+	if userID <= 0 {
+		return nil, dto.ErrUnauthorized
+	}
+	if len(req) == 0 {
 		return nil, dto.ErrBadRequest
 	}
 
