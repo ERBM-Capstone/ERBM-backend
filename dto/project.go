@@ -68,6 +68,13 @@ type ProjectListQuery struct {
 	Status string `form:"status" binding:"omitempty,oneof=ACTIVE CLOSED"`
 }
 
+// ProjectAssigneeListQuery contains filters for the project assignment dropdowns.
+type ProjectAssigneeListQuery struct {
+	ListQuery
+	Role string `form:"role" binding:"required,oneof=PM PC"`
+	Q    string `form:"q" binding:"omitempty,max=255"`
+}
+
 // ProjectMemberResponse is a PM or PC shown with a project.
 type ProjectMemberResponse struct {
 	UserID    int64  `json:"user_id"`
@@ -135,4 +142,14 @@ func toProjectMemberResponse(member model.ProjectUserSummary) ProjectMemberRespo
 		LastName:  member.LastName,
 		Email:     member.Email,
 	}
+}
+
+// ToProjectMemberResponses returns dropdown profiles, including an empty array
+// when no eligible users match.
+func ToProjectMemberResponses(members []model.ProjectUserSummary) []ProjectMemberResponse {
+	responses := make([]ProjectMemberResponse, 0, len(members))
+	for _, member := range members {
+		responses = append(responses, toProjectMemberResponse(member))
+	}
+	return responses
 }

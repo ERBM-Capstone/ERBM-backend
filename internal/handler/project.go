@@ -15,6 +15,7 @@ import (
 type projectService interface {
 	Create(ctx context.Context, userID int64, role string, req *dto.CreateProjectRequest) (*model.ProjectDetail, error)
 	List(ctx context.Context, userID int64, role string, filter model.ProjectFilter) ([]*model.ProjectDetail, int64, error)
+	ListAssignees(ctx context.Context, userID int64, role string, filter model.ProjectAssigneeFilter) ([]dto.ProjectMemberResponse, int64, error)
 	GetByID(ctx context.Context, userID int64, role string, id int64) (*model.ProjectDetail, error)
 	Update(ctx context.Context, userID int64, role string, id int64, req *dto.UpdateProjectRequest) (*model.ProjectDetail, error)
 }
@@ -114,6 +115,51 @@ func (h *ProjectHandler) List(c *gin.Context) {
 	}
 
 	dto.WithMeta(c, http.StatusOK, res, "Projects retrieved", &dto.Meta{
+		Page:    page,
+		PerPage: pageSize,
+		Total:   int(total),
+	})
+}
+
+// ListAssignees godoc
+// @Summary      List eligible project assignees
+// @Description  Returns ACTIVE accounts for the required PM or PC role, with user_id, first_name, last_name and email. Requires ADMIN, PM or PC. Searches full name or email case-insensitively and sorts by first name, last name and user ID. Users already assigned to other projects remain eligible. Creation rules still apply: a PM creator becomes the PM; a PC creator becomes the PC.
+// @Tags         projects
+// @Produce      json
+// @Security     BearerAuth
+// @Param        role      query  string  true   "Assignment role"           Enums(PM, PC)
+// @Param        q         query  string  false  "Search full name or email" maxLength(255)
+// @Param        page      query  int     false  "Page number"               minimum(1) default(1)
+// @Param        page_size query  int     false  "Items per page"            minimum(1) maximum(100) default(20)
+// @Success      200       {object} dto.BaseResponse{data=[]dto.ProjectMemberResponse}
+// @Failure      400       {object} dto.BaseResponse
+// @Failure      401       {object} dto.BaseResponse
+// @Failure      403       {object} dto.BaseResponse
+// @Failure      500       {object} dto.BaseResponse
+// @Router       /api/v1/projects/assignees [get]
+func (h *ProjectHandler) ListAssignees(c *gin.Context) {
+	userID, role, ok := getActor(c)
+	if !ok {
+		dto.HandleError(c, dto.ErrUnauthorized)
+		return
+	}
+	var query dto.ProjectAssigneeListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		dto.HandleError(c, dto.ErrBadRequest)
+		return
+	}
+	page, pageSize := pagination.WithDefaults(query.Page, query.PageSize)
+	members, total, err := h.service.ListAssignees(c.Request.Context(), userID, role, model.ProjectAssigneeFilter{
+		RoleCode: query.Role,
+		Query:    query.Q,
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		dto.HandleError(c, err)
+		return
+	}
+	dto.WithMeta(c, http.StatusOK, members, "Project assignees retrieved", &dto.Meta{
 		Page:    page,
 		PerPage: pageSize,
 		Total:   int(total),

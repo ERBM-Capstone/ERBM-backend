@@ -1552,6 +1552,107 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/projects/assignees": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns ACTIVE accounts for the required PM or PC role, with user_id, first_name, last_name and email. Requires ADMIN, PM or PC. Searches full name or email case-insensitively and sorts by first name, last name and user ID. Users already assigned to other projects remain eligible. Creation rules still apply: a PM creator becomes the PM; a PC creator becomes the PC.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "List eligible project assignees",
+                "parameters": [
+                    {
+                        "enum": [
+                            "PM",
+                            "PC"
+                        ],
+                        "type": "string",
+                        "description": "Assignment role",
+                        "name": "role",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "maxLength": 255,
+                        "type": "string",
+                        "description": "Search full name or email",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.BaseResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.ProjectMemberResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BaseResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/projects/{id}": {
             "get": {
                 "security": [

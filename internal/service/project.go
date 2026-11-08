@@ -30,6 +30,7 @@ type projectRepository interface {
 	GetByID(ctx context.Context, id int64) (*model.Project, error)
 	GetByIDForUpdate(ctx context.Context, tx *gorm.DB, id int64) (*model.Project, error)
 	List(ctx context.Context, filter model.ProjectFilter) ([]*model.Project, int64, error)
+	ListAssignees(ctx context.Context, filter model.ProjectAssigneeFilter) ([]model.ProjectUserSummary, int64, error)
 	Update(ctx context.Context, tx *gorm.DB, id int64, updates map[string]any) error
 	FindAssignableUsers(ctx context.Context, tx *gorm.DB, userIDs []int64) ([]model.AssignableUser, error)
 	HasUnclosedAdvances(ctx context.Context, tx *gorm.DB, projectID int64) (bool, error)
@@ -198,6 +199,32 @@ func (s *ProjectService) List(
 	}
 
 	return details, total, nil
+}
+
+// ListAssignees permits project creators to find eligible accounts. Creation
+// still enforces its own rules for automatically assigning a PM or PC creator.
+func (s *ProjectService) ListAssignees(ctx context.Context, userID int64, role string, filter model.ProjectAssigneeFilter) ([]dto.ProjectMemberResponse, int64, error) {
+	if userID <= 0 {
+		return nil, 0, dto.ErrUnauthorized
+	}
+	switch strings.ToUpper(role) {
+	case roleAdmin, rolePM, rolePC:
+	default:
+		return nil, 0, dto.ErrForbidden
+	}
+
+	filter.Page, filter.PageSize = pagination.WithDefaults(filter.Page, filter.PageSize)
+	if (filter.RoleCode != rolePM && filter.RoleCode != rolePC) ||
+		utf8.RuneCountInString(filter.Query) > 255 ||
+		!pagination.IsValid(filter.Page, filter.PageSize) {
+		return nil, 0, dto.ErrBadRequest
+	}
+	filter.Query = strings.TrimSpace(filter.Query)
+	members, total, err := s.repo.ListAssignees(ctx, filter)
+	if err != nil {
+		return nil, 0, dto.ErrInternalServer
+	}
+	return dto.ToProjectMemberResponses(members), total, nil
 }
 
 func (s *ProjectService) GetByID(ctx context.Context, userID int64, role string, id int64) (*model.ProjectDetail, error) {

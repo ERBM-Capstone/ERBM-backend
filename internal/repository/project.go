@@ -152,6 +152,37 @@ func (r *ProjectRepository) FindAssignableUsers(ctx context.Context, tx *gorm.DB
 	return users, err
 }
 
+// ListAssignees returns ACTIVE accounts with the requested project role.
+// Existing assignments do not exclude users: PMs and PCs may have many projects.
+func (r *ProjectRepository) ListAssignees(ctx context.Context, filter model.ProjectAssigneeFilter) ([]model.ProjectUserSummary, int64, error) {
+	members := make([]model.ProjectUserSummary, 0)
+	var total int64
+	db := r.db.WithContext(ctx).
+		Table("users AS u").
+		Joins("JOIN roles AS r ON r.id = u.role_id").
+		Joins("JOIN employees AS e ON e.id = u.employee_id").
+		Where("r.code = ? AND u.status = ?", filter.RoleCode, model.UserStatusActive)
+	if q := strings.TrimSpace(filter.Query); q != "" {
+		like := "%" + q + "%"
+		db = db.Where("(CONCAT_WS(' ', e.first_name, e.last_name) ILIKE ? OR u.email ILIKE ?)", like, like)
+	}
+
+	// Keep count and page execution state separate while sharing all filters.
+	db = db.Session(&gorm.Session{})
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := db.
+		Select("u.id AS user_id, e.first_name, e.last_name, u.email").
+		Order("e.first_name ASC, e.last_name ASC, u.id ASC").
+		Limit(filter.PageSize).
+		Offset((filter.Page - 1) * filter.PageSize).
+		Find(&members).Error; err != nil {
+		return nil, 0, err
+	}
+	return members, total, nil
+}
+
 // HasUnclosedAdvances must run while the caller holds the Project row lock.
 // Every status other than CLOSED blocks Project closing, including DRAFT.
 func (r *ProjectRepository) HasUnclosedAdvances(ctx context.Context, tx *gorm.DB, projectID int64) (bool, error) {

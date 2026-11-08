@@ -7,6 +7,11 @@ access to other Projects, so backend membership checks remain in place.
 
 ## API contracts
 
+For the PM/PC dropdowns, use GET `/api/v1/projects/assignees?role=PM` or
+`?role=PC`. It returns ACTIVE users with names and email, supports search and
+pagination, and is available to ADMIN/PM/PC. See [Project assignees](project-assignees.md)
+for the complete contract and create-form rules.
+
 POST `/api/v1/projects` generates `project_code` on the server and accepts a
 single optional `pc_user_id`:
 

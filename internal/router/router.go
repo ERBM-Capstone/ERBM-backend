@@ -95,6 +95,7 @@ func New(db *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, logi
 	projects.Use(middleware.RequireRole("ADMIN", "PM", "PC", "ACCOUNTING"))
 	{
 		projects.GET("", projectsHandler.List)
+		projects.GET("/assignees", middleware.RequireRole("ADMIN", "PM", "PC"), projectsHandler.ListAssignees)
 		projects.GET("/:id", projectsHandler.GetByID)
 
 		projectsWrite := projects.Group("")

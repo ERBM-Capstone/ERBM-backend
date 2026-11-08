@@ -73,6 +73,8 @@
     {
       "name": "Projects",
       "item": [
+        { "name": "PM dropdown (ACTIVE accounts)", "request": { "method": "GET", "description": "Requires ADMIN, PM or PC. Use user_id as the dropdown value; first_name, last_name and email are labels. A PM creator is assigned automatically as PM.", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/projects/assignees?role=PM&page=1&page_size=20" } },
+        { "name": "PC dropdown (ACTIVE accounts, search)", "request": { "method": "GET", "description": "Requires ADMIN, PM or PC. q searches full name or email. A PC creator is assigned automatically as PC; ADMIN/PM may select one PC or leave the project unassigned.", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/projects/assignees?role=PC&q=&page=1&page_size=20" } },
         {
           "name": "Create project (ADMIN, PM, PC)",
           "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ERBM rollout\",\n  \"description\": \"Initial rollout project\",\n  \"start_date\": \"2026-10-01\",\n  \"end_date\": \"2026-12-31\",\n  \"pm_user_id\": 1,\n  \"pc_user_id\": 2\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/projects" }

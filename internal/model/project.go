@@ -62,3 +62,11 @@ type ProjectFilter struct {
 	Page         int
 	PageSize     int
 }
+
+// ProjectAssigneeFilter selects eligible users for the PM or PC dropdown.
+type ProjectAssigneeFilter struct {
+	RoleCode string
+	Query    string
+	Page     int
+	PageSize int
+}
