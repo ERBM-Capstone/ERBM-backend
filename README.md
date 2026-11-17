@@ -4,6 +4,8 @@ REST API สำหรับ **Expense Reimbursement and Bill Management System (
 
 ## ความสามารถปัจจุบัน
 
+Expense รองรับร่างรายจ่าย แนบใบเสร็จ private, PC ตรวจและยืนยัน amount เดียวพร้อมสถานะ, กลับมาแก้ไขหลังยืนยัน และ reconciliation ระหว่าง OCR จะล็อกการแก้ไข/ยืนยัน/อ่านซ้ำทั้ง Expense และปลดล็อกเมื่อจบหรือผิดพลาด โครง OCR ยังรอ custom API contract ของเซิร์ฟเวอร์ส่วนตัว ดู [Expense API](docs/expense-api.md) สำหรับ flow, configuration, ข้อจำกัด และการทดสอบ
+
 - เข้าสู่ระบบด้วยอีเมลและรหัสผ่าน พร้อม JWT access token และ refresh token
 - เปิดใช้งานบัญชีผ่านลิงก์อีเมล ตั้งรหัสผ่านครั้งแรก และส่งลิงก์ใหม่
 - ตรวจสอบผู้ใช้ปัจจุบันและควบคุมสิทธิ์ตามบทบาท
@@ -224,11 +226,14 @@ Path ทั้งหมดในตารางมี prefix `/api/v1`:
 | `POST`  | `/advances/{id}/submit`             | ส่ง Draft ให้ PM พิจารณา | PC |
 | `POST`  | `/advances/{id}/approve`            | PM ของโครงการอนุมัติคำขอที่รอตรวจ | PM |
 | `POST`  | `/advances/{id}/return`             | PM ของโครงการส่งคำขอกลับแก้ไขพร้อมเหตุผล | PM |
+| `POST`  | `/advances/{id}/disburse`           | ยืนยันจ่ายเต็มยอดครั้งเดียว เปลี่ยน APPROVED เป็น ACTIVE | ACCOUNTING |
 | `GET`   | `/advances/{id}/history`            | ดูประวัติ เหตุผลส่งกลับ และ revision/amount/purpose ของแต่ละรอบที่ส่ง | ADMIN, PM, PC, ACCOUNTING |
 
 การดูหรือแก้ไขโครงการยังตรวจสิทธิ์ตามสมาชิกและ PM ของโครงการใน service ตามกฎด้านบน ดู payload และ HTTP status เพิ่มเติมได้ใน Swagger UI
 
 หน้ารายการงานใช้ `GET /api/v1/advances` พร้อม `status` และ pagination เดิม เช่น PM เรียก `?status=PENDING_PM_APPROVAL` หรือ PC เรียก `?status=RETURNED_FOR_REVISION` โดย backend กรองสิทธิ์ตามโครงการให้อยู่แล้ว ดูตัวอย่างใน [Advance list](docs/api/advance-list.md)
+
+Accounting ดู `?status=APPROVED` แล้วใช้ `POST /api/v1/advances/{id}/disburse` แบบไม่ส่ง body เพื่อยืนยันจ่ายเต็มยอดครั้งเดียวและเปิด Advance เป็น `ACTIVE` ต้อง apply migration `0006_create_advance_disbursements` ก่อนใช้งาน ดู [Disbursement API](docs/api/advance-disbursement.md)
 
 ### ตัวอย่างเข้าสู่ระบบ
 

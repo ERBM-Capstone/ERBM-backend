@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "20261018-1de8a4e1-9fd5-493d-ac55-4fc0b3b4636d",
     "name": "ERBM Advance API",
-    "description": "Advance API collection for the ERBM backend. Set baseUrl, accessToken, and projectId before use. Create Advance saves advanceId for detail, editing, submission and combined action/submission history. Submit requires the PC creator who is still assigned to the Project.",
+    "description": "Advance API collection for the ERBM backend. Set baseUrl, accessToken, and projectId before use. Create Advance saves advanceId for detail, editing, submission and combined action/submission history. Submit requires the PC creator who is still assigned to the Project.\n\nAdvance workflow: PC creates and submits DRAFT -> PENDING_PM_APPROVAL; the assigned PM approves -> APPROVED or returns with a reason -> RETURNED_FOR_REVISION; PC PATCHes a returned request -> DRAFT and submits again. After full payment, ACCOUNTING confirms disbursement -> ACTIVE. Use the same advanceId throughout. Switch accessToken to the acting PC, PM or ACCOUNTING user before each role-specific request. Accounting confirmation requires migration 0006 and a restarted server; no request body is sent. MD paper signature remains outside the system in phase 1.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -60,10 +60,131 @@
       "name": "Approved Advances (Accounting)",
       "request": {
         "method": "GET",
-        "description": "Use an ACCOUNTING accessToken. Lists approved Advances using the existing status filter. Confirmation of disbursement is a separate action.",
+        "description": "Use an ACCOUNTING accessToken. Lists approved Advances awaiting payment confirmation. Set advanceId to the chosen data item id, pay the full approved amount once, then call Confirm Full Disbursement (Accounting).",
         "url": "{{baseUrl}}/advances?status=APPROVED&page=1&page_size=20"
       },
       "response": []
+    },
+    {
+      "name": "Confirm Full Disbursement (Accounting)",
+      "request": {
+        "method": "POST",
+        "description": "Use an ACCOUNTING accessToken after paying the full approved amount once. No body is required. Transitions APPROVED to ACTIVE and records exact amount, server time, actor and DISBURSE history atomically. Returns 409 for another ACTIVE Advance in the Project, a closed Project, previous payment or non-APPROVED status. Requires migration 0006.",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/disburse"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('confirmation succeeded', () => pm.expect(body.success).to.eql(true));",
+              "pm.test('advance is ACTIVE', () => pm.expect(body.data?.status).to.eql('ACTIVE'));",
+              "pm.test('returns the selected advance', () => pm.expect(String(body.data?.id)).to.eql(String(pm.variables.get('advanceId'))));",
+              "pm.test('amount remains exact THB text', () => pm.expect(body.data?.amount).to.be.a('string').and.match(/^[0-9]+\\.[0-9]{2}$/));"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 - Full disbursement confirmed",
+          "originalRequest": {
+            "method": "POST",
+            "description": "Use an ACCOUNTING accessToken after paying the full approved amount once. No body is required. Transitions APPROVED to ACTIVE and records exact amount, server time, actor and DISBURSE history atomically. Returns 409 for another ACTIVE Advance in the Project, a closed Project, previous payment or non-APPROVED status. Requires migration 0006.",
+            "url": "{{baseUrl}}/advances/{{advanceId}}/disburse"
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": true,\n  \"message\": \"OK\",\n  \"data\": {\n    \"id\": 7,\n    \"advance_code\": \"ADV-PRJ-2026-000001-001\",\n    \"requester\": {\n      \"user_id\": 25,\n      \"first_name\": \"Somchai\",\n      \"last_name\": \"Jaidee\"\n    },\n    \"project\": {\n      \"id\": 10,\n      \"project_code\": \"PRJ-2026-000001\",\n      \"name\": \"Project A\"\n    },\n    \"purpose\": \"Travel and accommodation\",\n    \"amount\": \"15000.00\",\n    \"status\": \"ACTIVE\",\n    \"created_by\": 25,\n    \"submitted_at\": \"2026-11-17T09:00:00+07:00\",\n    \"created_at\": \"2026-11-17T08:30:00+07:00\",\n    \"updated_at\": \"2026-11-17T10:30:00+07:00\"\n  }\n}"
+        },
+        {
+          "name": "403 - ACCOUNTING role required",
+          "originalRequest": {
+            "method": "POST",
+            "description": "Use an ACCOUNTING accessToken after paying the full approved amount once. No body is required. Transitions APPROVED to ACTIVE and records exact amount, server time, actor and DISBURSE history atomically. Returns 409 for another ACTIVE Advance in the Project, a closed Project, previous payment or non-APPROVED status. Requires migration 0006.",
+            "url": "{{baseUrl}}/advances/{{advanceId}}/disburse"
+          },
+          "status": "Forbidden",
+          "code": 403,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": false,\n  \"message\": \"forbidden\"\n}"
+        },
+        {
+          "name": "409 - Another ACTIVE Advance in Project",
+          "originalRequest": {
+            "method": "POST",
+            "description": "Use an ACCOUNTING accessToken after paying the full approved amount once. No body is required. Transitions APPROVED to ACTIVE and records exact amount, server time, actor and DISBURSE history atomically. Returns 409 for another ACTIVE Advance in the Project, a closed Project, previous payment or non-APPROVED status. Requires migration 0006.",
+            "url": "{{baseUrl}}/advances/{{advanceId}}/disburse"
+          },
+          "status": "Conflict",
+          "code": 409,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": false,\n  \"message\": \"project already has an ACTIVE advance\"\n}"
+        },
+        {
+          "name": "409 - Not APPROVED or repeated confirmation",
+          "originalRequest": {
+            "method": "POST",
+            "description": "Use an ACCOUNTING accessToken after paying the full approved amount once. No body is required. Transitions APPROVED to ACTIVE and records exact amount, server time, actor and DISBURSE history atomically. Returns 409 for another ACTIVE Advance in the Project, a closed Project, previous payment or non-APPROVED status. Requires migration 0006.",
+            "url": "{{baseUrl}}/advances/{{advanceId}}/disburse"
+          },
+          "status": "Conflict",
+          "code": 409,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": false,\n  \"message\": \"advance can only be disbursed in APPROVED\"\n}"
+        },
+        {
+          "name": "409 - Project is closed",
+          "originalRequest": {
+            "method": "POST",
+            "description": "Use an ACCOUNTING accessToken after paying the full approved amount once. No body is required. Transitions APPROVED to ACTIVE and records exact amount, server time, actor and DISBURSE history atomically. Returns 409 for another ACTIVE Advance in the Project, a closed Project, previous payment or non-APPROVED status. Requires migration 0006.",
+            "url": "{{baseUrl}}/advances/{{advanceId}}/disburse"
+          },
+          "status": "Conflict",
+          "code": 409,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": false,\n  \"message\": \"project is closed\"\n}"
+        }
+      ]
     },
     {
       "name": "List Advances",
@@ -127,7 +248,7 @@
       "name": "Update Advance (PC creator)",
       "request": {
         "method": "PATCH",
-        "description": "Uses advanceId. Only the PC creator who remains assigned to the Project can update a DRAFT or RETURNED_FOR_REVISION Advance. Omit purpose or amount to retain its current value.",
+        "description": "Uses advanceId. Only the PC creator who remains assigned to the Project can update a DRAFT or RETURNED_FOR_REVISION Advance. Omit purpose or amount to retain its current value. A successful PATCH changes RETURNED_FOR_REVISION to DRAFT. Then call Submit Advance (PC) using the same advanceId; submitting directly from RETURNED_FOR_REVISION returns 409.",
         "header": [
           {
             "key": "Content-Type",
@@ -174,7 +295,7 @@
       "name": "Approve Advance (PM)",
       "request": {
         "method": "POST",
-        "description": "Use the Project's current PM accessToken. No body required. Only PENDING_PM_APPROVAL can become APPROVED. Repeated or conflicting review returns 409.",
+        "description": "Use the Project's current PM accessToken. No body required. Only PENDING_PM_APPROVAL can become APPROVED. Repeated or conflicting review returns 409. APPROVED does not yet allow expenses. After full payment, ACCOUNTING must call Confirm Full Disbursement (Accounting) to make this Advance ACTIVE.",
         "url": "{{baseUrl}}/advances/{{advanceId}}/approve"
       },
       "response": []
@@ -183,7 +304,7 @@
       "name": "Return Advance for Revision (PM)",
       "request": {
         "method": "POST",
-        "description": "Use the Project's current PM accessToken. Requires a nonblank reason. Only PENDING_PM_APPROVAL can become RETURNED_FOR_REVISION. The reason and action are saved atomically in audit history.",
+        "description": "Use the Project's current PM accessToken. Requires a nonblank reason. Only PENDING_PM_APPROVAL can become RETURNED_FOR_REVISION. The reason and action are saved atomically in audit history. Next, the PC reads the RETURN reason in List Advance Action History, PATCHes this same Advance to DRAFT, and submits again.",
         "header": [
           {
             "key": "Content-Type",
@@ -207,7 +328,7 @@
       "name": "List Advance Action History",
       "request": {
         "method": "GET",
-        "description": "Uses advanceId. Returns every workflow action, newest first by occurred_at and event ID. Includes actor, previous/resulting status, reason and timestamp. SUBMIT also includes revision (numbered from 1 per Advance in event-ID order), amount and purpose from that round. Submission fields are null for other actions; missing snapshot fields remain null. Same Project assignment and private-DRAFT policy as GET detail. No pagination or full audit snapshots. Replaces the separate revisions endpoint.",
+        "description": "Uses advanceId. Returns every workflow action, newest first by occurred_at and event ID. Includes actor, previous/resulting status, reason and timestamp. SUBMIT also includes revision (numbered from 1 per Advance in event-ID order), amount and purpose from that round. Submission fields are null for other actions; missing snapshot fields remain null. Same Project assignment and private-DRAFT policy as GET detail. No pagination or full audit snapshots. Replaces the separate revisions endpoint. DISBURSE records the Accounting actor and APPROVED -> ACTIVE transition; its revision, amount and purpose are null because it is not a SUBMIT event.",
         "url": "{{baseUrl}}/advances/{{advanceId}}/history"
       },
       "event": [

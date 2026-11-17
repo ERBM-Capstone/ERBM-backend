@@ -36,16 +36,15 @@ digraph erbmArchitecture {
       fontsize=13;
       color="#c4d2df";
       style=rounded;
-      existingServices [label="[E] Auth / Activation\nEmployee / Role / Project"];
-      financialServices [label="[P] Advance / Disbursement\nExpense / Document / OCR / Closing\nExact decimals + transaction orchestration",
+      existingServices [label="[E] Auth / Activation\nEmployee / Role / Project\nAdvance request / PM review / History"];
+      financialServices [label="[E/P] Expense / Document / OCR orchestration / Cleanup\nPlanned: Disbursement / Closing\nExact decimals + transaction orchestration",
         fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
     }
 
     repositories [label="[E/P] Repository layer\nGORM + context.Context\nTransactions and row locks\ninternal/repository"];
     mailAdapter [label="[E] mail.Sender\nSMTP adapter\nSend activation after commit"];
-    documentAdapter [label="[P] File storage adapter\nProvider and upload flow: D06",
-      fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
-    ocrAdapter [label="[P] OCR adapter\nProvider and execution mode: D06\nSupporting data only",
+    documentAdapter [label="[E] File storage adapter\nLocal / private GCS\nDurable deletion retry"];
+    ocrAdapter [label="[E/P] OCR Provider interface + orchestration\nPrivate 7B HTTP adapter awaits contract\nSynchronous / 30s per file\nAuto-fill draft; PC confirms amount",
       fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
   }
 
@@ -54,10 +53,9 @@ digraph erbmArchitecture {
     fontsize=15;
     color="#9cacbd";
     style=rounded;
-    postgres [shape=cylinder, label="[E/P] PostgreSQL\nExisting: Auth / Employee / Project\nPlanned: Advance / Expense / OCR / Closing\n18 application tables + schema_migrations",
+    postgres [shape=cylinder, label="[E/P] PostgreSQL schema\nExisting SQL: Auth / Employee / Project / Advance / Expense / OCR\nPlanned: Disbursement / Closing\n15 SQL + 4 planned application tables + schema_migrations",
       fillcolor="#edf5ef", color="#477756"];
-    files [shape=folder, label="[P] Document file storage\nexpense_documents stores storage_key\nProvider and retention: D06",
-      fillcolor="#fff4e5", color="#b77923", style="filled,dashed"];
+    files [shape=folder, label="[E] Private document storage adapters\nLocal in development / GCS Standard in deployment\nexpense_documents stores provider/key/generation"];
   }
 
   subgraph clusterExternal {
@@ -66,12 +64,12 @@ digraph erbmArchitecture {
     color="#9cacbd";
     style=rounded;
     smtp [label="[E] SMTP mail server\nAccount activation messages"];
-    ocrProvider [label="[P] OCR provider\nExtracted totals and line items\nDoes not decide financial amounts",
+    ocrProvider [label="[P] Private Typhoon OCR 7B server\nAPI reads totals and line items\nPC reviews and confirms financial amount",
       fillcolor="#fff4e5", color="#b77923", style="rounded,filled,dashed"];
   }
 
   migrateRunner [label="[E] Migration CLI\ncmd/migrate - pgx\nUp/down SQL and version tracking", fillcolor="#f2f5f8", color="#7e8b99"];
-  legend [shape=plain, label="E = existing in repository\nP = proposed in ERBM-DB-0.10\nE/P = existing layer with planned additions\nArrows = calls or data access; dashed = proposed connection",
+  legend [shape=plain, label="E = existing in repository; not deployment evidence\nP = planned implementation in ERBM-DB-0.14\nE/P = existing layer with planned additions\nArrows = calls or data access; dashed = partially planned connection",
     fontcolor="#46586b", fontsize=11];
 
   webClient -> router [label="HTTP / JSON"];
@@ -80,14 +78,14 @@ digraph erbmArchitecture {
   authMiddleware -> protectedHandlers [label="Verified identity"];
   publicAuth -> existingServices [label="Auth operations"];
   protectedHandlers -> existingServices [label="Existing modules"];
-  protectedHandlers -> financialServices [label="Planned modules", style=dashed, color="#b77923"];
+  protectedHandlers -> financialServices [label="Expense + planned modules", style=dashed, color="#b77923"];
   existingServices -> repositories [label="Database operations"];
   financialServices -> repositories [label="Financial operations", style=dashed, color="#b77923"];
   repositories -> postgres [label="SQL"];
   existingServices -> mailAdapter [label="Post-commit invite"];
   mailAdapter -> smtp [label="SMTP"];
-  financialServices -> documentAdapter [label="Upload / retrieve", style=dashed, color="#b77923"];
-  documentAdapter -> files [label="File bytes", style=dashed, color="#b77923"];
+  financialServices -> documentAdapter [label="Upload / retrieve"];
+  documentAdapter -> files [label="File bytes"];
   financialServices -> ocrAdapter [label="Document extraction", style=dashed, color="#b77923"];
   ocrAdapter -> ocrProvider [label="OCR request / result", style=dashed, color="#b77923"];
   migrateRunner -> postgres [label="DDL + schema_migrations"];
