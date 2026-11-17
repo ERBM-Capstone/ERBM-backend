@@ -280,6 +280,18 @@ func (s *ProjectService) Update(
 		if err := s.checkMembers(ctx, tx, req.PMUserID, req.PCUserID); err != nil {
 			return err
 		}
+		pcChanged := req.HasPCUserID() && ((project.PCUserID == nil) != (req.PCUserID == nil) ||
+			(project.PCUserID != nil && req.PCUserID != nil && *project.PCUserID != *req.PCUserID))
+		if pcChanged {
+			// Serialize with Advance creation and Expense mutations on this Project.
+			unclosed, err := s.repo.HasUnclosedAdvances(ctx, tx, project.ID)
+			if err != nil {
+				return err
+			}
+			if unclosed {
+				return dto.ErrProjectPCUnclosedAdvances
+			}
+		}
 		if req.Status != nil {
 			// Advance creation takes this same Project lock, so no new DRAFT
 			// can slip between this check and committing the CLOSED status.

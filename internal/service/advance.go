@@ -22,6 +22,9 @@ type advanceRepository interface {
 	Update(context.Context, *gorm.DB, *model.Advance) error
 	Submit(context.Context, *gorm.DB, *model.Advance) error
 	Review(context.Context, *gorm.DB, *model.Advance) error
+	HasActiveAdvance(context.Context, *gorm.DB, int64) (bool, error)
+	CreateDisbursement(context.Context, *gorm.DB, *model.AdvanceDisbursement) error
+	Activate(context.Context, *gorm.DB, *model.Advance) error
 	GetHistory(context.Context, int64) (*model.AdvanceHistory, error)
 	List(context.Context, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)
 	GetProjectAccess(context.Context, int64, int64) (*model.AdvanceProjectAccess, error)
@@ -98,7 +101,7 @@ func (s *AdvanceService) Create(ctx context.Context, userID int64, role string, 
 			Status: model.AdvanceStatusDraft, CreatedBy: userID, UpdatedBy: userID,
 		}
 		// Existing ACTIVE records do not block DRAFT creation. The partial
-		// unique index enforces one ACTIVE when activation is implemented.
+		// unique index enforces one ACTIVE at disbursement confirmation.
 		if err := s.repo.Create(ctx, tx, advance); err != nil {
 			return err
 		}
@@ -362,7 +365,7 @@ func (s *AdvanceService) Submit(ctx context.Context, userID int64, role string, 
 }
 
 func advanceDetailError(err error) error {
-	for _, known := range []error{dto.ErrAdvanceNotFound, dto.ErrForbidden, dto.ErrProjectClosed, dto.ErrAdvanceNotEditable, dto.ErrAdvanceNotSubmittable, dto.ErrAdvanceNotReviewable, dto.ErrBadRequest} {
+	for _, known := range []error{dto.ErrAdvanceNotFound, dto.ErrForbidden, dto.ErrProjectClosed, dto.ErrAdvanceNotEditable, dto.ErrAdvanceNotSubmittable, dto.ErrAdvanceNotReviewable, dto.ErrAdvanceNotDisbursable, dto.ErrProjectHasActiveAdvance, dto.ErrAdvanceAlreadyDisbursed, dto.ErrBadRequest} {
 		if errors.Is(err, known) {
 			return known
 		}

@@ -15,6 +15,7 @@ type advanceService interface {
 	Update(context.Context, int64, string, int64, *dto.UpdateAdvanceRequest) (*model.AdvanceListItem, error)
 	Submit(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
 	Approve(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
+	Disburse(context.Context, int64, string, int64) (*model.AdvanceListItem, error)
 	Return(context.Context, int64, string, int64, *dto.ReturnAdvanceRequest) (*model.AdvanceListItem, error)
 	History(context.Context, int64, string, int64) ([]model.AdvanceHistoryItem, error)
 	List(context.Context, int64, string, model.AdvanceFilter) ([]model.AdvanceListItem, int64, error)

@@ -31,10 +31,31 @@ var (
 	ErrInvalidProjectCoordinator  = errors.New("pc must be an active user with the PC role")
 
 	// Advance resource
-	ErrAdvanceNotFound       = errors.New("advance not found")
-	ErrAdvanceNotEditable    = errors.New("advance can only be edited in DRAFT or RETURNED_FOR_REVISION")
-	ErrAdvanceNotSubmittable = errors.New("advance can only be submitted in DRAFT")
-	ErrAdvanceNotReviewable  = errors.New("advance can only be reviewed in PENDING_PM_APPROVAL")
+	ErrAdvanceNotFound           = errors.New("advance not found")
+	ErrAdvanceNotEditable        = errors.New("advance can only be edited in DRAFT or RETURNED_FOR_REVISION")
+	ErrAdvanceNotSubmittable     = errors.New("advance can only be submitted in DRAFT")
+	ErrAdvanceNotReviewable      = errors.New("advance can only be reviewed in PENDING_PM_APPROVAL")
+	ErrAdvanceNotDisbursable     = errors.New("advance can only be disbursed in APPROVED")
+	ErrProjectHasActiveAdvance   = errors.New("project already has an ACTIVE advance")
+	ErrAdvanceAlreadyDisbursed   = errors.New("advance has already been disbursed")
+	ErrExpenseNotFound           = errors.New("expense not found")
+	ErrReceiptNotFound           = errors.New("receipt not found")
+	ErrExpenseNotActive          = errors.New("expenses can only be changed while the advance is ACTIVE")
+	ErrExpenseVersionConflict    = errors.New("expense draft has changed; reload before saving or confirming")
+	ErrExpenseAmountRequired     = errors.New("review and enter the draft amount before confirming")
+	ErrExpenseAlreadyConfirmed   = errors.New("reopen the confirmed expense before editing or starting OCR")
+	ErrExpenseOverBudget         = errors.New("confirmed expenses exceed the advance amount")
+	ErrReceiptLimit              = errors.New("an expense accepts at most 5 receipts and 50 MB")
+	ErrFileTooLarge              = errors.New("receipt exceeds the 10 MB file limit")
+	ErrUnsupportedReceipt        = errors.New("only JPEG, PNG and PDF receipts are supported")
+	ErrInvalidReceipt            = errors.New("receipt is empty, corrupt, encrypted or exceeds 5 PDF pages")
+	ErrOCRNotFound               = errors.New("OCR result not found")
+	ErrOCRInProgress             = errors.New("OCR is processing this expense; wait before editing, confirming or reading again")
+	ErrOCRUnavailable            = errors.New("private OCR integration is not configured")
+	ErrOCRFailed                 = errors.New("OCR could not read this receipt")
+	ErrOCRTimeout                = errors.New("OCR exceeded the 30 second file deadline")
+	ErrStorageUnavailable        = errors.New("receipt storage is unavailable")
+	ErrProjectPCUnclosedAdvances = errors.New("close all existing advances before changing the project PC")
 
 	// Example resource
 	ErrExampleNotFound = errors.New("example not found")
@@ -79,4 +100,25 @@ var ErrorStatusMap = map[error]int{
 	ErrAdvanceNotEditable:         http.StatusConflict,
 	ErrAdvanceNotSubmittable:      http.StatusConflict,
 	ErrAdvanceNotReviewable:       http.StatusConflict,
+	ErrAdvanceNotDisbursable:      http.StatusConflict,
+	ErrProjectHasActiveAdvance:    http.StatusConflict,
+	ErrAdvanceAlreadyDisbursed:    http.StatusConflict,
+	ErrExpenseNotFound:            http.StatusNotFound,
+	ErrReceiptNotFound:            http.StatusNotFound,
+	ErrExpenseNotActive:           http.StatusConflict,
+	ErrExpenseVersionConflict:     http.StatusConflict,
+	ErrExpenseAlreadyConfirmed:    http.StatusConflict,
+	ErrExpenseAmountRequired:      http.StatusBadRequest,
+	ErrExpenseOverBudget:          http.StatusConflict,
+	ErrReceiptLimit:               http.StatusConflict,
+	ErrFileTooLarge:               http.StatusRequestEntityTooLarge,
+	ErrUnsupportedReceipt:         http.StatusUnsupportedMediaType,
+	ErrInvalidReceipt:             http.StatusUnprocessableEntity,
+	ErrOCRNotFound:                http.StatusNotFound,
+	ErrOCRInProgress:              http.StatusConflict,
+	ErrOCRUnavailable:             http.StatusServiceUnavailable,
+	ErrOCRFailed:                  http.StatusBadGateway,
+	ErrOCRTimeout:                 http.StatusGatewayTimeout,
+	ErrStorageUnavailable:         http.StatusServiceUnavailable,
+	ErrProjectPCUnclosedAdvances:  http.StatusConflict,
 }

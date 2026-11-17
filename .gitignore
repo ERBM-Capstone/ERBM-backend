@@ -12,6 +12,7 @@ coverage.*
 
 # Temporary files and logs
 /tmp/
+/var/receipts/
 *.log
 
 # Editors and operating systems

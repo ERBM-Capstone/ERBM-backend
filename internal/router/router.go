@@ -18,7 +18,7 @@ import (
 )
 
 // New builds and returns the root Gin engine with all routes registered.
-func New(db *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, loginPolicy service.LoginPolicy, activationConfig service.ActivationConfig, mailSender mail.Sender) *gin.Engine {
+func New(db *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, loginPolicy service.LoginPolicy, activationConfig service.ActivationConfig, mailSender mail.Sender, expenseOptions ...service.ExpenseOptions) *gin.Engine {
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
@@ -120,6 +120,31 @@ func New(db *gorm.DB, tokens *jwtmanager.Manager, refreshCookieSecure bool, logi
 	advances.POST("/:id/submit", middleware.RequireRole("PC"), advancesHandler.Submit)
 	advances.POST("/:id/approve", middleware.RequireRole("PM"), advancesHandler.Approve)
 	advances.POST("/:id/return", middleware.RequireRole("PM"), advancesHandler.Return)
+	advances.POST("/:id/disburse", middleware.RequireRole("ACCOUNTING"), advancesHandler.Disburse)
+
+	var options service.ExpenseOptions
+	if len(expenseOptions) > 0 {
+		options = expenseOptions[0]
+	}
+	expenseSvc := service.NewExpenseService(repository.NewExpenseRepository(db), options)
+	expenseHandler := handler.NewExpenseHandler(expenseSvc)
+	advances.GET("/:id/expenses", expenseHandler.List)
+	advances.POST("/:id/expenses", middleware.RequireRole("PC"), expenseHandler.Create)
+	advances.GET("/:id/reconciliation", expenseHandler.Reconciliation)
+	expenses := protected.Group("/expenses")
+	expenses.Use(middleware.RequireRole("ADMIN", "PM", "PC", "ACCOUNTING"))
+	expenses.GET("/:id", expenseHandler.Get)
+	expenses.GET("/:id/receipts", expenseHandler.Receipts)
+	expenses.GET("/:id/receipts/:receipt_id/file", expenseHandler.OpenReceipt)
+	expenses.GET("/:id/ocr-result", expenseHandler.OCRResult)
+	expenses.PATCH("/:id", middleware.RequireRole("PC"), expenseHandler.Update)
+	expenses.DELETE("/:id", middleware.RequireRole("PC"), expenseHandler.Delete)
+	expenses.POST("/:id/confirm", middleware.RequireRole("PC"), expenseHandler.Confirm)
+	expenses.POST("/:id/reopen", middleware.RequireRole("PC"), expenseHandler.Reopen)
+	expenses.POST("/:id/receipt", middleware.RequireRole("PC"), expenseHandler.UploadReceipt)
+	expenses.POST("/:id/receipts", middleware.RequireRole("PC"), expenseHandler.UploadReceipt)
+	expenses.DELETE("/:id/receipts/:receipt_id", middleware.RequireRole("PC"), expenseHandler.DeleteReceipt)
+	expenses.POST("/:id/ocr", middleware.RequireRole("PC"), expenseHandler.ReadOCR)
 
 	return r
 }
