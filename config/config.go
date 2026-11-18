@@ -27,12 +27,24 @@ type Config struct {
 	SMTPGmailAppPassword       string
 	SMTPFromAddress            string
 	FrontendActivationURL      string
+	ReceiptStorageProvider     string
+	ReceiptStorageRoot         string
+	ReceiptGCSBucket           string
+	OCRBaseURL                 string
+	LLMBaseURL                 string
+	AIrequestTimeout           time.Duration
 }
 
 // Load reads .env (if present) and returns a populated Config.
 func Load() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, reading from environment")
+	}
+
+	aiTimeout := getDurationEnv("AI_REQUEST_TIMEOUT", 30*time.Second)
+	if aiTimeout <= 0 {
+		log.Print("invalid duration for AI_REQUEST_TIMEOUT, using default")
+		aiTimeout = 30 * time.Second
 	}
 
 	return &Config{
@@ -52,6 +64,12 @@ func Load() *Config {
 		SMTPGmailAppPassword:       getEnv("SMTP_GMAIL_APP_PASSWORD", ""),
 		SMTPFromAddress:            getEnv("SMTP_FROM_ADDRESS", ""),
 		FrontendActivationURL:      getEnv("FRONTEND_ACTIVATION_URL", ""),
+		ReceiptStorageProvider:     getEnv("RECEIPT_STORAGE_PROVIDER", "local"),
+		ReceiptStorageRoot:         getEnv("RECEIPT_STORAGE_ROOT", "var/receipts"),
+		ReceiptGCSBucket:           getEnv("RECEIPT_GCS_BUCKET", ""),
+		OCRBaseURL:                 getEnv("OCR_BASE_URL", ""),
+		LLMBaseURL:                 getEnv("LLM_BASE_URL", ""),
+		AIrequestTimeout:           aiTimeout,
 	}
 }
 

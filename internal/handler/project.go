@@ -204,7 +204,7 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 
 // Update godoc
 // @Summary      Update project
-// @Description  Partially updates a project. Omit pc_user_id to keep its PC, send a positive user ID to replace it, or null to remove it. ADMIN and the project's PM can edit fields and assignments; the assigned PC can only change name and description. Only the project's PM can close it by sending status "CLOSED". Closing returns 409 if any Advance in this Project is not CLOSED, including DRAFT. A closed project cannot be changed.
+// @Description  Partially updates a project. Omit pc_user_id to keep its PC, send a positive user ID to replace it, or null to remove it. Replacing or removing PC requires every existing Advance to be CLOSED, including DRAFT and APPROVED. ADMIN and the project's PM can edit fields and assignments; the assigned PC can only change name and description. Only the project's PM can close it by sending status "CLOSED". Closing returns 409 if any Advance in this Project is not CLOSED, including DRAFT. A closed project cannot be changed.
 // @Tags         projects
 // @Accept       json
 // @Produce      json

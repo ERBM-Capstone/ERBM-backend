@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/ERBM-Capstone/ERBM-backend/internal/migration"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -194,16 +194,5 @@ func migrateDown(ctx context.Context, pool *pgxpool.Pool) error {
 // migrationVersions returns all unique migration versions found in the migrations directory.
 // It looks for .up.sql files and extracts the version prefix.
 func migrationVersions() ([]string, error) {
-	files, err := filepath.Glob("migrations/*.up.sql")
-	if err != nil {
-		return nil, err
-	}
-
-	versions := make([]string, 0, len(files))
-	for _, f := range files {
-		base := filepath.Base(f)
-		version := strings.TrimSuffix(base, ".up.sql")
-		versions = append(versions, version)
-	}
-	return versions, nil
+	return migration.Versions("migrations")
 }

@@ -25,11 +25,12 @@ func (s AdvanceStatus) IsKnown() bool {
 type AdvanceAction string
 
 const (
-	AdvanceActionCreate  AdvanceAction = "CREATE"
-	AdvanceActionUpdate  AdvanceAction = "UPDATE"
-	AdvanceActionSubmit  AdvanceAction = "SUBMIT"
-	AdvanceActionApprove AdvanceAction = "APPROVE"
-	AdvanceActionReturn  AdvanceAction = "RETURN"
+	AdvanceActionCreate   AdvanceAction = "CREATE"
+	AdvanceActionUpdate   AdvanceAction = "UPDATE"
+	AdvanceActionSubmit   AdvanceAction = "SUBMIT"
+	AdvanceActionApprove  AdvanceAction = "APPROVE"
+	AdvanceActionReturn   AdvanceAction = "RETURN"
+	AdvanceActionDisburse AdvanceAction = "DISBURSE"
 )
 
 // AdvanceListItem is the read model of an Advance joined with its Project.
@@ -69,6 +70,7 @@ type Advance struct {
 	SubmittedBy *int64        `json:"submitted_by"`
 	ApprovedAt  *time.Time    `json:"approved_at"`
 	ApprovedBy  *int64        `json:"approved_by"`
+	ActivatedAt *time.Time    `json:"activated_at,omitempty"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
 }

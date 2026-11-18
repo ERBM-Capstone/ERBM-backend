@@ -1,0 +1,393 @@
+{
+  "info": {
+    "name": "ERBM Expense, Receipts and OCR API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Single amount with DRAFT/CONFIRMED status. PC reviews OCR, confirms, and explicitly reopens to stop counting the amount before editing. Custom private OCR API contract is still required. Backend locks the entire Expense while any receipt OCR is PROCESSING: edits, confirmation, reopening and another OCR request return 409. Failure/timeout releases the lock and allows retry; successful cache remains until force=true."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "advanceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expenseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "receiptId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expenseVersion",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Create empty Expense",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/expenses",
+        "description": "PC creator; Advance must already be ACTIVE. No amount required.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code >= 200 && pm.response.code < 300) {",
+              "  const data = pm.response.json().data;",
+              "  if (data && data.id !== undefined) pm.collectionVariables.set(\"expenseId\", String(data.id));",
+              "  if (data && data.version !== undefined) pm.collectionVariables.set(\"expenseVersion\", String(data.version));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List expenses",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/expenses?page=1&page_size=20",
+        "description": ""
+      },
+      "response": []
+    },
+    {
+      "name": "Get Expense",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}",
+        "description": ""
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code >= 200 && pm.response.code < 300) {",
+              "  const data = pm.response.json().data;",
+              "  if (data && data.version !== undefined) pm.collectionVariables.set(\"expenseVersion\", String(data.version));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload one receipt",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/receipts",
+        "description": "Choose one JPG/PNG/PDF file <=10 MB (10,000,000 bytes). Maximum five files / 50 MB (50,000,000 bytes) per Expense. PDF <=5 pages, unencrypted. Original /receipt also works.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code >= 200 && pm.response.code < 300) {",
+              "  const data = pm.response.json().data;",
+              "  if (data && data.id !== undefined) pm.collectionVariables.set(\"receiptId\", String(data.id));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List receipts",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/receipts",
+        "description": ""
+      },
+      "response": []
+    },
+    {
+      "name": "Open private receipt",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/receipts/{{receiptId}}/file",
+        "description": ""
+      },
+      "response": []
+    },
+    {
+      "name": "Read OCR (cached unless forced)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/ocr",
+        "description": "Server returns 503 until the custom private Typhoon OCR 7B adapter is supplied. Only DRAFT can start OCR; never confirms or changes a CONFIRMED amount. While processing, all receipts in this Expense share the same lock. Failure/timeout can be retried; success returns expense.version for the next edit or confirm.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"receipt_id\": {{receiptId}},\n  \"force\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const data = pm.response.json().data;",
+              "  if (data && data.expense) pm.collectionVariables.set(\"expenseVersion\", String(data.expense.version));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Latest OCR result",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/ocr-result?receipt_id={{receiptId}}",
+        "description": ""
+      },
+      "response": []
+    },
+    {
+      "name": "Force OCR rerun",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/ocr",
+        "description": "DRAFT only. A new attempt; original extraction retained. GET Expense afterwards to obtain version. While processing, all receipts in this Expense share the same lock. Failure/timeout can be retried; success returns expense.version for the next edit or confirm.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"receipt_id\": {{receiptId}},\n  \"force\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const data = pm.response.json().data;",
+              "  if (data && data.expense) pm.collectionVariables.set(\"expenseVersion\", String(data.expense.version));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PC correct draft",
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}",
+        "description": "Decimal strings, zero permitted. This saves a draft only.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": {{expenseVersion}},\n  \"amount\": \"123.45\",\n  \"description\": \"ค่าใช้จ่ายที่ตรวจแล้ว\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code >= 200 && pm.response.code < 300) {",
+              "  const data = pm.response.json().data;",
+              "  if (data && data.version !== undefined) pm.collectionVariables.set(\"expenseVersion\", String(data.version));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PC confirm reviewed version",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/confirm",
+        "description": "Marks the single amount CONFIRMED. Reopen first to edit a confirmed Expense. 409 on stale version or overspend.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": {{expenseVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"expenseVersion\", String(pm.response.json().data.version));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PC reopen for correction",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/reopen",
+        "description": "ACTIVE only. Keeps amount, switches to DRAFT, clears confirmation and immediately stops counting the amount. Correct with PATCH and confirm again; budget is rechecked.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": {{expenseVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"expenseVersion\", String(pm.response.json().data.version));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "Reconciliation",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/advances/{{advanceId}}/reconciliation",
+        "description": ""
+      },
+      "response": []
+    },
+    {
+      "name": "Delete incorrect receipt",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}/receipts/{{receiptId}}",
+        "description": "204 after bytes deleted, or 202 with cleanup_pending while durable retry is pending. ACTIVE only. Does not change confirmed money."
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Expense",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/expenses/{{expenseId}}",
+        "description": "Hard delete Expense/receipts/OCR. 204 or 202 if byte cleanup is pending. ACTIVE only."
+      },
+      "response": []
+    }
+  ]
+}

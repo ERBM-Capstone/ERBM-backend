@@ -66,7 +66,8 @@ each action must validate role, Project assignment and current workflow state
 in its own service. PM approval and return are documented in
 [PM review](advance-pm-review.md). Read return reasons and action history with
 [GET /api/v1/advances/{id}/history](advance-history.md). Confirmation of
-disbursement requires its own action; filtering the list alone does not
+disbursement uses `POST /api/v1/advances/{id}/disburse` with an ACCOUNTING token
+and no body; filtering the list alone does not
 implement it.
 
 ## Implementation plan
